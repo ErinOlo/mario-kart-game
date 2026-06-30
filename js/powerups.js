@@ -59,6 +59,11 @@ export class Pickups {
         // actual light cast around the portal so it illuminates its surroundings
         const glowLight = new THREE.PointLight(0xffffff, 3.0, 16, 2);
         g.add(glowLight);
+        // flag background filling the portal interior
+        const flag = themeFlag(def.theme);
+        flag.scale.set(1, 1.4, 1);
+        flag.position.z = 0.05;
+        g.add(flag);
         const sym = themeSymbol(def.theme);
         sym.position.z = 0.1;
         g.add(sym);
@@ -105,7 +110,9 @@ export class Pickups {
     const tnow = performance.now() * 0.001;
     for (const it of this.items) {
       it.mesh.rotation.y += (it.mesh.userData.spin || 1) * dt;
-      it.mesh.position.y = (it.def.type === 'slowmo' ? 1.0 : 1.6) + Math.sin(tnow * 2 + it.def.t * 10) * 0.2;
+      // theme portals are tall (1.5x scaled oval) — raise them so the whole flag clears the ground
+      const baseY = it.def.type === 'slowmo' ? 1.0 : it.def.type === 'theme' ? 4.4 : 1.6;
+      it.mesh.position.y = baseY + Math.sin(tnow * 2 + it.def.t * 10) * 0.2;
       if (it.mesh.userData.billboard && camera) {
         it.mesh.rotation.y = Math.atan2(camera.position.x - it.mesh.position.x, camera.position.z - it.mesh.position.z);
       }
@@ -131,7 +138,10 @@ export class Pickups {
     const hits = [];
     for (const it of this.items) {
       if (!it.active) continue;
-      if (playerKart.pos.distanceTo(it.mesh.position) < it.collectRadius) {
+      // horizontal distance only — portals are raised well above the kart, so y must not count
+      const dx = playerKart.pos.x - it.mesh.position.x;
+      const dz = playerKart.pos.z - it.mesh.position.z;
+      if (Math.hypot(dx, dz) < it.collectRadius) {
         it.active = false;
         it.mesh.visible = false;
         it.respawn = 10; // reappear later for replay value
@@ -175,6 +185,30 @@ export class Pickups {
     this.clearProjectiles();
     for (const it of this.items) { it.active = true; it.mesh.visible = true; it.respawn = 0; }
   }
+}
+
+// flag background that fills a theme portal — 3 horizontal stripes (or solid)
+function themeFlag(theme) {
+  const STRIPES = {
+    berlin: ['#000000', '#FF0000', '#FFCC00'],
+    vilnius: ['#FCD116', '#006633', '#D12630'],
+    amsterdam: ['#AE1C28', '#FFFFFF', '#21468B'],
+  };
+  const canvas = document.createElement('canvas');
+  canvas.width = 96; canvas.height = 96;
+  const ctx = canvas.getContext('2d');
+  if (theme === 'vinted') {
+    ctx.fillStyle = '#007782';
+    ctx.fillRect(0, 0, 96, 96);
+  } else {
+    const cols = STRIPES[theme] || ['#ffffff', '#ffffff', '#ffffff'];
+    for (let i = 0; i < 3; i++) { ctx.fillStyle = cols[i]; ctx.fillRect(0, i * 32, 96, 32); }
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  return new THREE.Mesh(
+    new THREE.CircleGeometry(1.8, 32),
+    new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide })
+  );
 }
 
 // small iconic object shown inside a theme portal
