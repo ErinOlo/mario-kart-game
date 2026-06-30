@@ -7,7 +7,12 @@
       "Bash(node effects.mjs)",
       "Bash(pkill -f \"http.server 4599\")",
       "Bash(pkill -f \"serve@14\")",
-      "Bash(pkill -f \"http.server 8099\")"
+      "Bash(pkill -f \"http.server 8099\")",
+      "Bash(node --check js/main.js)",
+      "Bash(node --input-type=module --check)",
+      "Bash(pkill -f \"serve . -l 4321\")",
+      "Bash(pkill -f \"serve@\")",
+      "Bash(git -C /Users/erin.oloughlin/Desktop/mario-kart-game status --short)"
     ]
   }
 }

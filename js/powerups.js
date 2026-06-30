@@ -21,7 +21,9 @@ export class Pickups {
       const mesh = this._mesh(def);
       mesh.position.copy(this.track.placeAt(def.t, def.side, 1.6));
       this.group.add(mesh);
-      this.items.push({ def, mesh, active: true, respawn: 0 });
+      // mode portals are large, so they get a correspondingly bigger hitbox
+      const collectRadius = def.type === 'mode' ? 6.0 : 3.2;
+      this.items.push({ def, mesh, active: true, respawn: 0, collectRadius });
     }
   }
 
@@ -53,13 +55,18 @@ export class Pickups {
         break;
       }
       case 'mode': {
-        // green (good) or dark/red (bad) shining square
-        const c = def.mode === 'good' ? 0x33ff88 : 0xcc1133;
-        const box = new THREE.Mesh(new THREE.BoxGeometry(2.4, 2.4, 0.4), m(c, { emissiveIntensity: 0.7 }));
-        g.add(box);
-        const frame = new THREE.Mesh(new THREE.TorusGeometry(1.7, 0.18, 8, 4), m(c, { emissiveIntensity: 0.9 }));
-        frame.rotation.z = Math.PI / 4; g.add(frame);
-        g.userData.icon = def.mode === 'good' ? '🌞' : '🌧'; g.userData.spin = 1.5; g.userData.billboard = true;
+        // green (good) or red (bad) PORTAL — big colored hollow ring you can see through
+        const c = def.mode === 'good' ? 0x33ff88 : 0xff2233;
+        const R = 3.4; // ~2x the old portal — bigger & more visible
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(R, 0.4, 16, 36), m(c, { emissiveIntensity: 0.95 }));
+        g.add(ring);
+        // faint transparent membrane so the interior is hollow / see-through
+        const inner = new THREE.Mesh(
+          new THREE.CircleGeometry(R - 0.35, 36),
+          new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false })
+        );
+        g.add(inner);
+        g.userData.icon = def.mode === 'good' ? '🌞' : '🌧'; g.userData.spin = 1.0; g.userData.billboard = true;
         break;
       }
       case 'slowmo': {
@@ -112,7 +119,7 @@ export class Pickups {
     const hits = [];
     for (const it of this.items) {
       if (!it.active) continue;
-      if (playerKart.pos.distanceTo(it.mesh.position) < 3.2) {
+      if (playerKart.pos.distanceTo(it.mesh.position) < it.collectRadius) {
         it.active = false;
         it.mesh.visible = false;
         it.respawn = 10; // reappear later for replay value

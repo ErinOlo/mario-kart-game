@@ -1,5 +1,5 @@
 // ============================================================
-//  Collage Kart — game configuration & data tables
+//  Vinted Kart — game configuration & data tables
 // ============================================================
 
 export const RACE = {
@@ -84,25 +84,25 @@ export const THEMES = {
     name: 'BERLIN',
     blurb: 'TV Tower, currywurst & techno',
     good: { sky: 0x6cc6ff, fog: 0xbdeaff, ground: 0x4fd35f, road: 0x1f9fff, accent: 0xff2e63 },
-    bad:  { sky: 0x33363f, fog: 0x2a2c33, ground: 0x4a4d44, road: 0x26282f, accent: 0x8a8d99 },
+    bad:  { sky: 0x565a66, fog: 0x474a54, ground: 0x4a4d44, road: 0x26282f, accent: 0x8a8d99 },
   },
   amsterdam: {
     name: 'AMSTERDAM',
     blurb: 'Canals, windmills & stroopwafels',
     good: { sky: 0x7fe0d6, fog: 0xc6f3ee, ground: 0x4fd35f, road: 0x1fb6ff, accent: 0xff5ca8 },
-    bad:  { sky: 0x3a3f44, fog: 0x2f3338, ground: 0x4d5046, road: 0x2a2926, accent: 0x6f7a80 },
+    bad:  { sky: 0x5d646b, fog: 0x4d5258, ground: 0x4d5046, road: 0x2a2926, accent: 0x6f7a80 },
   },
   vilnius: {
     name: 'VILNIUS',
     blurb: 'Gediminas Tower, amber & hoops',
     good: { sky: 0xffd066, fog: 0xffe9bf, ground: 0x5fd84a, road: 0x7ed957, accent: 0xff3b2e },
-    bad:  { sky: 0x3b3530, fog: 0x2e2a26, ground: 0x4f4a3e, road: 0x29251f, accent: 0x9a7f5e },
+    bad:  { sky: 0x60584e, fog: 0x4c463d, ground: 0x4f4a3e, road: 0x29251f, accent: 0x9a7f5e },
   },
   vinted: {
     name: 'VINTED',
     blurb: 'Mountains of secondhand fashion',
     good: { sky: 0xb6e6ff, fog: 0xdcf4ff, ground: 0x36d6b0, road: 0x1f9fff, accent: 0x0bd3dd },
-    bad:  { sky: 0x35383f, fog: 0x2b2e34, ground: 0x46504a, road: 0x23272e, accent: 0x5f8a8c },
+    bad:  { sky: 0x585c66, fog: 0x474b54, ground: 0x46504a, road: 0x23272e, accent: 0x5f8a8c },
   },
 };
 

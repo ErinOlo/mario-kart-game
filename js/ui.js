@@ -65,7 +65,11 @@ export class UI {
     this.el.countdown.classList.add('hidden');
   }
 
-  hideStart() { this.el.startScreen.classList.add('hidden'); }
+  // hide every menu/overlay so a fresh race can begin (Start AND Play Again paths)
+  hideStart() {
+    this.el.startScreen.classList.add('hidden');
+    this.el.results.classList.add('hidden');
+  }
 
   async countdown(audio) {
     this.el.countdown.classList.remove('hidden');

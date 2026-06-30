@@ -1,6 +1,6 @@
-# 🏎️ Collage Kart
+# 🏎️ Vinted Kart
 
-A Mario Kart-style browser racer through a shifting **collage** of cities. Race a kart
+A browser kart racer through a shifting **collage** of cities. Race a kart
 made of local food against 3 AI racers, eat power-ups that warp the entire world, and
 beat the 2:30 clock.
 

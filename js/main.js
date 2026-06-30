@@ -9,7 +9,7 @@ import { UI } from './ui.js';
 import { Audio } from './audio.js';
 
 // ============================================================
-//  Collage Kart — main game controller & loop.
+//  Vinted Kart — main game controller & loop.
 // ============================================================
 class Game {
   constructor() {
@@ -160,7 +160,7 @@ class Game {
     this.track.applyPalette(pal);
 
     // lighting tone for good/bad
-    if (mode === 'bad') { this.ambient.intensity = 0.4; this.sun.intensity = 0.45; this.sun.color.setHex(0x9099aa); }
+    if (mode === 'bad') { this.ambient.intensity = 0.58; this.sun.intensity = 0.6; this.sun.color.setHex(0x9099aa); }
     else { this.ambient.intensity = 0.75; this.sun.intensity = 1.0; this.sun.color.setHex(0xffffff); }
 
     if (rebuild) this.environment.build(theme, mode);
@@ -216,6 +216,7 @@ class Game {
     }
 
     this._updateParticles(realDt);
+    this.environment.update(realDt);   // spin windmill sails / döner spits
     this.renderer.render(this.scene, this.camera);
   }
 
