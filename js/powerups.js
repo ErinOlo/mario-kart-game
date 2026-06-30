@@ -42,15 +42,27 @@ export class Pickups {
       }
       case 'theme': {
         // white shining oval portal with iconic object inside
-        const ring = new THREE.Mesh(new THREE.TorusGeometry(2, 0.35, 12, 28), m(0xffffff, { emissiveIntensity: 0.8 }));
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(2, 0.35, 12, 28), m(0xffffff, { emissiveIntensity: 1.8 }));
         ring.scale.set(1, 1.4, 1);
         g.add(ring);
-        const inner = new THREE.Mesh(new THREE.CircleGeometry(1.8, 24), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.35, side: THREE.DoubleSide }));
+        const inner = new THREE.Mesh(new THREE.CircleGeometry(1.8, 24), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55, side: THREE.DoubleSide }));
         inner.scale.set(1, 1.4, 1);
         g.add(inner);
+        // strong white halo glow surrounding the portal (additive, larger than the ring)
+        const halo = new THREE.Mesh(
+          new THREE.CircleGeometry(3.2, 32),
+          new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false })
+        );
+        halo.scale.set(1, 1.4, 1);
+        halo.position.z = -0.05;
+        g.add(halo);
+        // actual light cast around the portal so it illuminates its surroundings
+        const glowLight = new THREE.PointLight(0xffffff, 3.0, 16, 2);
+        g.add(glowLight);
         const sym = themeSymbol(def.theme);
         sym.position.z = 0.1;
         g.add(sym);
+        g.scale.setScalar(1.5);
         g.userData.icon = '🌀'; g.userData.spin = 0.6; g.userData.billboard = true;
         break;
       }
