@@ -132,7 +132,7 @@ kbd {
 
 #center-banner {
   position: absolute; top: 38%; left: 50%; transform: translate(-50%, -50%);
-  font-size: 44px; font-weight: bold; letter-spacing: 2px; text-align: center;
+  font-size: 44px; font-weight: bold; letter-spacing: 2px; text-align: center; white-space: pre-line;
   text-shadow: 0 0 24px rgba(255, 46, 136, 0.7), 3px 3px 0 #000;
   animation: bannerPop 0.4s ease-out;
 }
