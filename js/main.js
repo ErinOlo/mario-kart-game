@@ -175,7 +175,7 @@ class Game {
     this._applyTheme(this.theme, mode, true);
     if (mode === 'good') Audio.sfxModeGood(); else Audio.sfxModeBad();
     Audio.setMusicMode(this.slowMoTimer > 0 ? 'slowmo' : mode);
-    this.ui.banner(mode === 'good' ? '☀ GOOD MODE' : '🌧 BAD MODE');
+    this.ui.banner(mode === 'good' ? '☀ GOOD MODE' : 'You entered the Upside Down 👹 Watch out for... Vecna......', mode === 'good' ? undefined : 3000);
   }
 
   // ---------- power-up effects ----------
