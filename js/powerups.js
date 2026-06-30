@@ -59,14 +59,11 @@ export class Pickups {
         // actual light cast around the portal so it illuminates its surroundings
         const glowLight = new THREE.PointLight(0xffffff, 3.0, 16, 2);
         g.add(glowLight);
-        // flag background filling the portal interior
+        // flag background (with bold centered letter) filling the portal interior
         const flag = themeFlag(def.theme);
         flag.scale.set(1, 1.4, 1);
         flag.position.z = 0.05;
         g.add(flag);
-        const sym = themeSymbol(def.theme);
-        sym.position.z = 0.1;
-        g.add(sym);
         g.scale.setScalar(1.5);
         g.userData.icon = '🌀'; g.userData.spin = 0.6; g.userData.billboard = true;
         break;
@@ -194,45 +191,34 @@ function themeFlag(theme) {
     vilnius: ['#FCD116', '#006633', '#D12630'],
     amsterdam: ['#AE1C28', '#FFFFFF', '#21468B'],
   };
+  const LABELS = { berlin: 'B', vilnius: 'V', amsterdam: 'A', vinted: '❤️' };
+  const S = 256; // canvas resolution
   const canvas = document.createElement('canvas');
-  canvas.width = 96; canvas.height = 96;
+  canvas.width = S; canvas.height = S;
   const ctx = canvas.getContext('2d');
   if (theme === 'vinted') {
     ctx.fillStyle = '#007782';
-    ctx.fillRect(0, 0, 96, 96);
+    ctx.fillRect(0, 0, S, S);
   } else {
     const cols = STRIPES[theme] || ['#ffffff', '#ffffff', '#ffffff'];
-    for (let i = 0; i < 3; i++) { ctx.fillStyle = cols[i]; ctx.fillRect(0, i * 32, 96, 32); }
+    const band = S / 3;
+    for (let i = 0; i < 3; i++) { ctx.fillStyle = cols[i]; ctx.fillRect(0, i * band, S, band + 1); }
+  }
+  // large bold letter / emoji centered on top of the flag
+  const label = LABELS[theme] || '';
+  if (label) {
+    ctx.font = `bold ${Math.round(S * 0.6)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineWidth = S * 0.04;
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.55)';
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeText(label, S / 2, S / 2);
+    ctx.fillText(label, S / 2, S / 2);
   }
   const tex = new THREE.CanvasTexture(canvas);
   return new THREE.Mesh(
     new THREE.CircleGeometry(1.8, 32),
     new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide })
   );
-}
-
-// small iconic object shown inside a theme portal
-function themeSymbol(theme) {
-  const m = (c) => new THREE.MeshBasicMaterial({ color: c });
-  const g = new THREE.Group();
-  switch (theme) {
-    case 'berlin': {
-      const s = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.3, 2, 8), m(0xc0c8ff)); g.add(s);
-      const b = new THREE.Mesh(new THREE.SphereGeometry(0.35, 10, 10), m(0xff4b2b)); b.position.y = 0.8; g.add(b);
-      break;
-    }
-    case 'amsterdam': {
-      const p = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 0.18, 16), m(0xe8b04b)); p.rotation.x = 0.5; g.add(p);
-      break;
-    }
-    case 'vilnius': {
-      const t = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, 1.4, 8), m(0xb5503a)); g.add(t);
-      break;
-    }
-    case 'vinted': {
-      const v = new THREE.Mesh(new THREE.TorusGeometry(0.6, 0.18, 8, 20), m(0x09b1ba)); g.add(v);
-      break;
-    }
-  }
-  return g;
 }
