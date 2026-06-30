@@ -87,45 +87,23 @@ class AudioEngine {
     this.engineOsc = null;
   }
 
-  // ============ MUSIC (procedural loop) ============
-  // Major pentatonic for 'good', minor for 'bad', ethereal for 'slowmo'.
+  // ============ MUSIC (chiptune player) ============
   startMusic() {
-    if (!this.ok || this.musicTimer) return;
-    this.musicGain.gain.setTargetAtTime(0.18, this.ctx.currentTime, 1.0);
-    const tick = () => {
-      this._musicStep();
-      this.musicTimer = setTimeout(tick, this.tempoMs);
-    };
-    tick();
+    if (this.musicTimer) return;   // already playing
+    this.musicTimer = true;        // sentinel so we don't double-start
+    if (window.Chiptune) {
+      window.Chiptune.play({ loop: true, volume: 0.7 });
+    }
   }
   stopMusic() {
-    if (this.musicTimer) { clearTimeout(this.musicTimer); this.musicTimer = null; }
-    if (this.ok) this.musicGain.gain.setTargetAtTime(0.0, this.ctx.currentTime, 0.4);
+    if (!this.musicTimer) return;
+    this.musicTimer = null;
+    if (window.Chiptune) window.Chiptune.stop();
   }
   setMusicMode(mode) {
-    this.mode = mode;
-    this.tempoMs = mode === 'slowmo' ? 460 : mode === 'bad' ? 330 : 230;
+    this.mode = mode;   // retained for future use; chiptune plays the fixed melody
   }
-  _musicStep() {
-    if (!this.ok) return;
-    const scales = {
-      good:   [0, 4, 7, 9, 12, 9, 7, 4],       // major-ish, bright
-      bad:    [0, 3, 7, 10, 12, 10, 7, 3],     // minor, darker
-      slowmo: [0, 7, 12, 16, 19, 16, 12, 7],   // open, ethereal
-    };
-    const root = this.mode === 'bad' ? 130.81 : 146.83; // C3 / D3
-    const scale = scales[this.mode] || scales.good;
-    const semi = scale[this.step % scale.length];
-    const freq = root * Math.pow(2, semi / 12);
-    const type = this.mode === 'slowmo' ? 'sine' : this.mode === 'bad' ? 'triangle' : 'square';
-    const vol = this.mode === 'slowmo' ? 0.16 : 0.12;
-    this._tone(freq, this.tempoMs / 1000 * 0.9, type, vol, 0, this.musicGain);
-    // bass on the beat
-    if (this.step % 2 === 0) {
-      this._tone(freq / 2, this.tempoMs / 1000 * 1.2, 'sine', 0.14, 0, this.musicGain);
-    }
-    this.step++;
-  }
+  _musicStep() { /* replaced by chiptune player */ }
 
   // ============ SOUND EFFECTS ============
   sfxBoost() {            // bright rising chime
