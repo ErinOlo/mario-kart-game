@@ -29,6 +29,34 @@ export class Environment {
     return base.addScaledVector(lat, side * dist).setY(y);
   }
 
+  // Guarantee an object's horizontal footprint stays clear of the ENTIRE
+  // track loop. Because the circuit doubles back on itself, an object placed
+  // far off one segment can overshoot the infield and land on another segment,
+  // so we can't rely on the lateral offset alone. Push the object straight away
+  // from whichever centerline point is nearest until it clears the road + gap.
+  _ensureClear(obj, minGap = 3) {
+    const half = this.track.width / 2;
+    const pts = this.track._pts;
+    const box = new THREE.Box3(), c = new THREE.Vector3(), size = new THREE.Vector3();
+    for (let iter = 0; iter < 60; iter++) {
+      box.setFromObject(obj); box.getCenter(c); box.getSize(size);
+      const r = 0.5 * Math.hypot(size.x, size.z);        // horizontal footprint radius
+      let dmin = Infinity, nx = 0, nz = 0;
+      for (const p of pts) {
+        const dx = c.x - p.x, dz = c.z - p.z;
+        const d = dx * dx + dz * dz;
+        if (d < dmin) { dmin = d; nx = p.x; nz = p.z; }
+      }
+      dmin = Math.sqrt(dmin);
+      const clearance = dmin - r - half;
+      if (clearance >= minGap) break;                    // already clear — the common case
+      let ax = c.x - nx, az = c.z - nz;                  // push directly away from nearest point
+      const len = Math.hypot(ax, az) || 1;
+      obj.position.x += (ax / len) * (minGap - clearance + 0.5);
+      obj.position.z += (az / len) * (minGap - clearance + 0.5);
+    }
+  }
+
   build(themeKey, mode) {
     this.clear();
     const theme = THEMES[themeKey];
@@ -44,6 +72,7 @@ export class Environment {
       const lm = this._landmark(themeKey, mode, m, i);
       lm.position.copy(this._outside(t, side, 42 + (i % 3) * 22, 0));
       lm.rotation.y = side > 0 ? Math.PI : 0;     // face the track
+      this._ensureClear(lm, 4);                   // big pieces: keep a wider berth
       this.group.add(lm);
     }
 
@@ -55,6 +84,7 @@ export class Environment {
       const med = this._medium(themeKey, mode, m, i);
       med.position.copy(this._outside(t, side, 17 + (i % 8) * 4.2, 0));
       med.rotation.y = i * 1.3;
+      this._ensureClear(med, 3);
       this.group.add(med);
     }
 
@@ -69,6 +99,7 @@ export class Environment {
       const dist = 6 + (i % 11) * 2.3 + (i % 4) * 2.0;
       small.position.copy(this._outside(t, side, dist, 0));
       small.rotation.y = Math.sin(i * 2.1) * Math.PI;
+      this._ensureClear(small, 2.5);
       this.group.add(small);
     }
 
