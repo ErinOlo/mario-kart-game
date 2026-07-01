@@ -160,6 +160,61 @@ function garment(add, x, railY, color, type) {
 }
 
 // ============================================================
+//  Shape Building Guide implementations (see CLAUDE.md)
+//  Built to the documented spec exactly: the geometry constructors,
+//  component positions, Z rotations (degrees → radians), hex colors,
+//  MeshStandardMaterial, grouping and overall scale as written.
+// ============================================================
+const DEG = Math.PI / 180;
+
+// Pretzel — 4 torus objects grouped together.
+export function buildPretzel() {
+  const group = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: 0xD2B48C }); // tan/brown
+  // [rotateZ (deg), x, y, z] straight from the guide
+  const parts = [
+    [45,   0.0,  0.5, 0], // Torus 1 (top)
+    [90,  -0.3, -0.2, 0], // Torus 2 (left)
+    [270,  0.3, -0.2, 0], // Torus 3 (right)
+    [180,  0.0, -0.8, 0], // Torus 4 (bottom)
+  ];
+  for (const [rz, x, y, z] of parts) {
+    const t = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.15, 16, 16), mat);
+    t.rotation.z = rz * DEG;
+    t.position.set(x, y, z);
+    group.add(t);
+  }
+  group.scale.setScalar(1.5); // 1.5 units overall
+  return group;
+}
+
+// High Heel Shoe (Ladies Stiletto) — 3 components grouped together.
+export function buildHighHeelShoe() {
+  const group = new THREE.Group();
+  const body = 0xFF1493;   // hot pink
+  const heelCol = 0x333333; // dark grey
+  // slight metallic sheen, shared style
+  const sheen = (c) => new THREE.MeshStandardMaterial({ color: c, metalness: 0.4, roughness: 0.35 });
+
+  const main = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.4, 0.8), sheen(body));
+  main.position.set(0, 0.2, 0);
+  group.add(main);
+
+  const heel = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.2), sheen(heelCol));
+  heel.position.set(0.25, -0.3, 0.3);
+  group.add(heel);
+
+  // Toe — stretched cone, color matches body
+  const toe = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.7, 16), sheen(body));
+  toe.rotation.x = Math.PI / 2; // point the cone forward along +z
+  toe.position.set(-0.3, 0, 0.4);
+  group.add(toe);
+
+  group.scale.setScalar(1.2); // 1.2 units overall height
+  return group;
+}
+
+// ============================================================
 //  BERLIN
 // ============================================================
 const LANDMARKS = { berlin: [], amsterdam: [], vilnius: [], vinted: [] };
@@ -308,10 +363,11 @@ SMALL.berlin = [
     add(Cyl(0.35, 0.35, 0.12, 14), 0xffffff, 0, 0.96, 0);
     add(Cyl(0.06, 0.06, 0.2, 8), 0xffffff, 0, 1.1, 0);
   },
-  ({ add }) => { // 5 soft pretzel
-    const p = add(Tor(0.55, 0.2, Math.PI * 2), 0xc98a3c, 0, 0.7, 0); p.rotation.x = 0.25;
-    add(Sph(0.06, 6), 0xffffff, 0.2, 1.05, 0.1);
-    add(Sph(0.06, 6), 0xffffff, -0.25, 0.95, 0.1);
+  ({ g }) => { // 5 pretzel — built to the Shape Building Guide spec
+    const pretzel = buildPretzel();
+    const box = new THREE.Box3().setFromObject(pretzel);
+    pretzel.position.y -= box.min.y; // rest its lowest point on the ground
+    g.add(pretzel);
   },
   ({ add }) => { // 6 sausage bunch — linked sausages
     for (let k = 0; k < 4; k++) { const s = add(Cap(0.16, 0.5), 0xb5651d, -0.45 + k * 0.3, 0.5 + (k % 2) * 0.2, 0); s.rotation.z = 0.4; }
@@ -828,9 +884,11 @@ SMALL.vinted = [
     add(Box(0.7, 0.5, 0.3), FASHION[i % FASHION.length], 0, 0.5, 0);
     add(Tor(0.2, 0.04, Math.PI), 0x333, 0, 0.85, 0).rotation.x = Math.PI / 2;
   },
-  ({ add }) => { // 6 high-heel shoe
-    add(Cap(0.18, 0.5), 0xff2e63, 0, 0.4, 0).rotation.z = Math.PI / 2;
-    add(Box(0.1, 0.5, 0.1), 0xff2e63, 0.3, 0.25, 0);           // heel
+  ({ g }) => { // 6 high-heel shoe — built to the Shape Building Guide spec
+    const shoe = buildHighHeelShoe();
+    const box = new THREE.Box3().setFromObject(shoe);
+    shoe.position.y -= box.min.y; // rest its lowest point on the ground
+    g.add(shoe);
   },
   ({ add, i }) => { // 7 hat
     add(Cyl(0.4, 0.4, 0.06, 14), FASHION[i % FASHION.length], 0, 0.25, 0);  // brim
