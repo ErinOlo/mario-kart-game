@@ -22,6 +22,12 @@ export const KART = {
   boostMult: 1.7,          // speed-boost power-up multiplier
   driftBoostSpeed: 26,     // instant speed added on a good drift release
   aiMaxSpeed: 52,          // capped so AI can't beat 2:30 easily
+
+  // ---- kart-to-kart collision ----
+  collideRadius: 1.9,      // half-separation; two karts touch when centers are < 2× this apart
+  collideImpulse: 22,      // world-space knockback velocity added on contact (units/sec)
+  collideSpeedKeep: 0.82,  // fraction of forward speed retained after a bump
+  collideDecay: 0.02,      // per-second decay base for the knockback velocity
 };
 
 // ---- Track centerline control points (XZ plane, y = 0) ----
