@@ -57,18 +57,20 @@ Browser-based Mario Kart-style racing game with dynamic city themes (Berlin, Ams
 ## Shape Building Guide
 
 ### Pretzel
-- Use 4 torus shapes positioned to form a twisted loop
-- Torus 1: Top curve (rotated 45°)
-- Torus 2: Left twist (rotated 90°)
-- Torus 3: Right twist (rotated 270°)
-- Torus 4: Bottom curve (rotated 180°)
-- Color: tan/brown (0xD2B48C)
-- Scale: 1.5 units
-- Combine with group to position correctly
+Shape: 4 torus objects grouped together
+- Torus 1 (top): TorusGeometry(0.5, 0.15, 16, 16), rotate Z by 45°, position (0, 0.5, 0)
+- Torus 2 (left): TorusGeometry(0.5, 0.15, 16, 16), rotate Z by 90°, position (-0.3, -0.2, 0)
+- Torus 3 (right): TorusGeometry(0.5, 0.15, 16, 16), rotate Z by 270°, position (0.3, -0.2, 0)
+- Torus 4 (bottom): TorusGeometry(0.5, 0.15, 16, 16), rotate Z by 180°, position (0, -0.8, 0)
+- Material: MeshStandardMaterial, color 0xD2B48C (tan/brown)
+- Scale: 1.5 units overall
+- Group all 4 torus objects together
 
 ### High Heel Shoe (Ladies Stiletto)
-- Main body: Stretched box for shoe base (red or pink)
-- Heel: Thin cylinder positioned at back (tall, thin, 0.1 unit diameter)
-- Toe: Slightly tapered forward
-- Height: 1.2 units overall
-- Color: hot pink or red (0xFF1493)
+Shape: 3 components grouped together
+- Main body: BoxGeometry(0.6, 0.4, 0.8), color 0xFF1493 (hot pink), position (0, 0.2, 0)
+- Heel: CylinderGeometry(0.08, 0.08, 1.2), color 0x333333 (dark grey), position (0.25, -0.3, 0.3)
+- Toe: Cone stretched, or tapered BoxGeometry, color matches body, position (-0.3, 0, 0.4)
+- Material: MeshStandardMaterial with slight metallic sheen
+- Scale: 1.2 units overall height
+- Group all components together
