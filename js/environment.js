@@ -99,10 +99,17 @@ export class Environment {
       const t = (i / medCount + 0.006) % 1;
       const side = i % 2 ? 1 : -1;
       const med = this._medium(themeKey, mode, m, i);
-      // the medium array is cycled many times — keep only one Vilnius TV Tower
+      // the medium array is cycled many times — keep only one Vilnius TV Tower,
+      // and place it at a fixed prominent spot right beside the track (not the
+      // loop's default position) so a driver clearly sees it.
       if (med.userData.isVilniusTV) {
         if (tvPlaced) { med.traverse((o) => { o.geometry?.dispose?.(); o.material?.dispose?.(); }); continue; }
         tvPlaced = true;
+        med.position.copy(this._outside(0.12, -1, 18, 0)); // trackside on the long opening straight
+        med.rotation.y = 0;                                // face the racing line
+        this._ensureClear(med, 3);                         // keep off the road
+        this.group.add(med);
+        continue;
       }
       med.position.copy(this._outside(t, side, 17 + (i % 8) * 4.2, 0));
       med.rotation.y = i * 1.3;
@@ -937,7 +944,7 @@ LANDMARKS.vilnius = [
   },
   // 3. Hill of Crosses — distinctive mound bristling with crosses
   ({ g, add, bad }) => {
-    g.scale.setScalar(2.5); // 2.5× bigger (position unchanged)
+    g.scale.setScalar(2.5); // 50% smaller than the previous 5× (position unchanged)
     g.userData.isHillOfCrosses = true; // only one is kept (see build() landmark loop)
     add(Cone(9, 5, 16), grey(bad, 0x7a6a4a), 0, 2.5, 0);        // mound
     let n = 0;
@@ -970,19 +977,6 @@ LANDMARKS.vilnius = [
       }
     }
     add(Cone(0.6, 2.2, 8), cake, 0, 3 + levels * 1.9, 0);               // top point
-  },
-  // 5. Sūrelis — big pale Lithuanian curd cheese wheels with chocolate glaze
-  ({ add, bad }) => {
-    const curd = grey(bad, 0xf5e9cf), glaze = grey(bad, 0x5a3b22);
-    const radii = [5, 4.2, 3.4];
-    let y = 0;
-    for (let k = 0; k < radii.length; k++) {
-      const h = 3.2 - k * 0.3;
-      add(Cyl(radii[k], radii[k], h, 24), curd, 0, y + h / 2, 0);
-      y += h;
-    }
-    add(Cyl(3.5, 3.5, 0.7, 24), glaze, 0, y + 0.2, 0);                  // glaze cap
-    for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2; add(Cap(0.3, 1.2), glaze, Math.cos(a) * 3.2, y - 0.4, Math.sin(a) * 3.2); } // drips
   },
   // Šakotis (Lithuanian tree cake) — huge procedural roadside decoration
   ({ g }) => {
