@@ -7,6 +7,7 @@ import { createTulip } from './tulip.js';
 import { createGediminasTower } from './gediminas-tower.js';
 import { createWhiteStork } from './white-stork.js';
 import { makeLake } from './SoupLakeScene.js';
+import { createVilniusTVTower } from './vilnius-tv-tower.js';
 
 // ============================================================
 //  Environment — themed scenery scattered around the fixed track.
@@ -93,10 +94,16 @@ export class Environment {
 
     // ---- medium features — mid-field (depth layer 2), both sides, dense ----
     const medCount = 60;
+    let tvPlaced = false;
     for (let i = 0; i < medCount; i++) {
       const t = (i / medCount + 0.006) % 1;
       const side = i % 2 ? 1 : -1;
       const med = this._medium(themeKey, mode, m, i);
+      // the medium array is cycled many times — keep only one Vilnius TV Tower
+      if (med.userData.isVilniusTV) {
+        if (tvPlaced) { med.traverse((o) => { o.geometry?.dispose?.(); o.material?.dispose?.(); }); continue; }
+        tvPlaced = true;
+      }
       med.position.copy(this._outside(t, side, 17 + (i % 8) * 4.2, 0));
       med.rotation.y = i * 1.3;
       this._ensureClear(med, 3);
@@ -1025,12 +1032,12 @@ MEDIUM.vilnius = [
     add(Dome(4, 18), grey(bad, accent), 0, 3, 0);               // dome roof
     add(Box(0.1, 1.4, 1.4), grey(bad, 0xffffff), 4, 3, 0);      // backboard hint
   },
-  // 4 Vilnius TV Tower — tall slim concrete tower w/ flared base + ring
-  ({ add, bad }) => {
-    add(Cone(2.6, 4, 12), grey(bad, 0xdfe4e8), 0, 2, 0);        // flared base
-    add(Cyl(0.5, 0.9, 12, 12), grey(bad, 0xeef2f5), 0, 9, 0);   // shaft
-    add(Cyl(1.6, 1.6, 1.4, 16), grey(bad, 0xc0c8cf), 0, 13, 0); // observation ring
-    add(Cyl(0.12, 0.2, 5, 8), grey(bad, 0xff3b2e), 0, 16, 0);   // mast
+  // 4 Vilnius TV Tower — updated procedural model (kept unique; see MEDIUM loop dedup).
+  // size 0.77 ≈ 23.4u tall — 30% bigger than the old ~18u tower it replaces.
+  ({ g }) => {
+    const tower = createVilniusTVTower(THREE, { size: 0.77, seed: 1 });
+    g.add(tower);
+    g.userData.isVilniusTV = true;
   },
   // 5 Mindaugas Bridge — modern span with cables
   ({ add, bad }) => {
