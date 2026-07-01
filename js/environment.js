@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { THEMES } from './config.js';
 import { createSakotis } from './sakotis.js';
+import { createStrawberry } from './strawberry.js';
 
 // ============================================================
 //  Environment — themed scenery scattered around the fixed track.
@@ -102,6 +103,20 @@ export class Environment {
       small.rotation.y = Math.sin(i * 2.1) * Math.PI;
       this._ensureClear(small, 2.5);
       this.group.add(small);
+    }
+
+    // ---- Berlin only: 100 strawberries scattered randomly across the field ----
+    if (themeKey === 'berlin') {
+      for (let i = 0; i < 100; i++) {
+        const straw = createStrawberry(THREE, { size: 3, seed: i + 1 }); // 3× the natural size
+        const t = Math.random();
+        const side = Math.random() < 0.5 ? -1 : 1;
+        const dist = 6 + Math.random() * 42;             // spread across the field band
+        straw.position.copy(this._outside(t, side, dist, 0)); // group origin (y=0) is the bottom tip → sits on ground
+        straw.rotation.y = Math.random() * Math.PI * 2;
+        this._ensureClear(straw, 2);                     // keep off the racing path
+        this.group.add(straw);
+      }
     }
 
     // ground & sky handled by Game via palette
@@ -256,7 +271,8 @@ const SMALL = { berlin: [], amsterdam: [], vilnius: [], vinted: [] };
 // ---- Berlin landmarks ----
 LANDMARKS.berlin = [
   // 1. Fernsehturm (TV Tower) — red/white, the dominant skyline piece, ~35 tall
-  ({ add, bad }) => {
+  ({ g, add, bad }) => {
+    g.scale.setScalar(2); // 2× size (position unchanged — placed at ground origin)
     const white = grey(bad, 0xffffff), red = grey(bad, 0xff2e3a);
     add(Cyl(0.8, 1.7, 22, 16), white, 0, 11, 0);                 // tapering shaft
     for (const y of [5, 10, 15]) add(Cyl(1.05, 1.15, 1.3, 16), red, 0, y, 0); // red bands
@@ -267,7 +283,8 @@ LANDMARKS.berlin = [
     add(Cone(0.25, 3, 8), red, 0, 36, 0);                        // tip
   },
   // 2. Brandenburg Gate — beige colonnade, gold arches, quadriga, ~12 tall
-  ({ add, bad }) => {
+  ({ g, add, bad }) => {
+    g.scale.setScalar(3); // 3× size (position unchanged — placed at ground origin)
     const beige = grey(bad, 0xe6cf92), gold = grey(bad, 0xf5b922);
     const W = 18, colN = 6, span = 3.0;
     add(Box(W, 1.2, 5), beige, 0, 0.6, 0);                       // plinth
@@ -281,7 +298,8 @@ LANDMARKS.berlin = [
     for (let h = 0; h < 4; h++) add(Box(0.5, 1.5, 1.6), gold, -1.8 + h * 1.0, 11.7, 0.9); // horses
   },
   // 3. Reichstag — stone block, portico + glass dome, smaller than TV Tower (~15)
-  ({ add, bad, accent }) => {
+  ({ g, add, bad, accent }) => {
+    g.scale.setScalar(2); // 2× size (position unchanged — placed at ground origin)
     const stone = grey(bad, 0xddd6c4), glass = grey(bad, 0x9fdfe8);
     add(Box(16, 9, 10), stone, 0, 4.5, 0);                       // main block
     for (let c = 0; c < 4; c++) add(Cyl(0.7, 0.7, 7, 12), stone, -4.5 + c * 3, 4.5, 5.3); // portico columns
