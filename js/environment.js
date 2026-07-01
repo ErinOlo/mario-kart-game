@@ -1,9 +1,22 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { THEMES } from './config.js';
 import { createSakotis } from './sakotis.js';
 import { createStrawberry } from './strawberry.js';
 import { AMPELMANN } from './ampelmann.js';
 import { createTulip } from './tulip.js';
+
+// Themed GLB landmark models, replacing the old procedural pretzel/shoe geometry.
+const GLB_MODELS = {
+  pretzel:  { url: 'public/models/pretzel.glb',  name: 'pretzelLandmark',  height: 30 },
+  stiletto: { url: 'public/models/stiletto.glb', name: 'stilettoLandmark', height: 22 },
+};
+// Which model scatters on which theme, plus anchor points [t, side, distance]
+// around the loop — spread out and offset from the landmark ring.
+const THEME_GLB = {
+  berlin: { model: 'pretzel',  anchors: [[0.187, 1, 46], [0.437, -1, 44], [0.687, 1, 52], [0.937, -1, 40]] },
+  vinted: { model: 'stiletto', anchors: [[0.12, 1, 44], [0.37, -1, 50], [0.62, 1, 42], [0.87, -1, 52]] },
+};
 
 // ============================================================
 //  Environment — themed scenery scattered around the fixed track.
@@ -24,6 +37,104 @@ export class Environment {
     this.group = new THREE.Group();
     scene.add(this.group);
     this.spinners = [];   // windmill sails, döner spits — rotated each frame
+
+    // Themed GLB landmark models (pretzel → Berlin, stiletto → Vinted), loaded
+    // once and cloned per build.
+    this.models = {};
+    this.currentTheme = null;
+    this._modelsScattered = false;
+    this._loadModels();
+  }
+
+  // Load each GLB once; if its theme is already showing, scatter it immediately.
+  _loadModels() {
+    const loader = new GLTFLoader();
+    for (const [key, cfg] of Object.entries(GLB_MODELS)) {
+      loader.load(
+        cfg.url,
+        (gltf) => {
+          const model = gltf.scene;
+          model.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+          this.models[key] = model;
+          if (THEME_GLB[this.currentTheme]?.model === key) this._scatterModels(this.currentTheme);
+        },
+        undefined,
+        (err) => console.error(`Failed to load ${key} GLB:`, err),
+      );
+    }
+  }
+
+  // Clone a GLB model, scale it to a landmark height, and rest its lowest point
+  // on the ground. Returns a positioned-at-origin wrapper tagged so other
+  // landmarks/models keep their distance.
+  _makeModelWrap(source, name, targetHeight) {
+    const model = source.clone(true);
+    const size = new THREE.Vector3();
+    new THREE.Box3().setFromObject(model).getSize(size);
+    model.scale.setScalar(size.y > 0 ? targetHeight / size.y : 1);
+
+    const wrap = new THREE.Group();
+    wrap.name = name;
+    wrap.userData.avoid = true;
+    wrap.add(model);
+    const box = new THREE.Box3().setFromObject(wrap);
+    model.position.y -= box.min.y;             // rest on the ground after scaling
+    return wrap;
+  }
+
+  // Smallest horizontal footprint edge-gap from obj to any already-placed
+  // "avoid" object (landmarks + earlier models). Negative → overlapping.
+  _minAvoidGap(obj) {
+    const box = new THREE.Box3(), c = new THREE.Vector3(), size = new THREE.Vector3();
+    const ob = new THREE.Box3(), oc = new THREE.Vector3(), os = new THREE.Vector3();
+    box.setFromObject(obj); box.getCenter(c); box.getSize(size);
+    const r = 0.5 * Math.hypot(size.x, size.z);
+    let worst = Infinity;
+    for (const other of this.group.children) {
+      if (other === obj || !other.userData?.avoid) continue;
+      ob.setFromObject(other); ob.getCenter(oc); ob.getSize(os);
+      const orr = 0.5 * Math.hypot(os.x, os.z);
+      const d = Math.hypot(c.x - oc.x, c.z - oc.z);
+      worst = Math.min(worst, d - r - orr);
+    }
+    return worst;
+  }
+
+  // Slide the pretzel along the roadside (varying t, both directions) from the
+  // anchor until it clears every landmark/earlier pretzel by minGap, staying off
+  // the track the whole time. Falls back to the least-bad spot if none clears.
+  _placeAlongTrack(wrap, t0, side, dist, minGap) {
+    let best = null, bestGap = -Infinity;
+    for (let step = 0; step <= 45; step++) {
+      for (const dir of step === 0 ? [0] : [1, -1]) {
+        const t = (t0 + dir * step * 0.01 + 1) % 1;
+        wrap.position.copy(this._outside(t, side, dist, 0));
+        wrap.rotation.y = side > 0 ? Math.PI : 0;   // face the track
+        this._ensureClear(wrap, 5);                 // never on the racing surface
+        const gap = this._minAvoidGap(wrap);
+        if (gap >= minGap) return;                  // clear — keep this spot
+        if (gap > bestGap) { bestGap = gap; best = wrap.position.clone(); }
+      }
+    }
+    if (best) wrap.position.copy(best);             // best effort
+  }
+
+  // Scatter this theme's GLB models around the loop — alternating sides and
+  // varied distances so they feel naturally distributed. Anchors sit opposite
+  // the landmark ring; each then slides along the roadside into a clear gap.
+  // No-op until the model has loaded.
+  _scatterModels(themeKey) {
+    const cfg = THEME_GLB[themeKey];
+    if (!cfg || this._modelsScattered) return;
+    const source = this.models[cfg.model];
+    if (!source) return;                            // GLB not loaded yet
+    const { name, height } = GLB_MODELS[cfg.model];
+    for (const [t, side, dist] of cfg.anchors) {
+      const wrap = this._makeModelWrap(source, name, height);
+      this._placeAlongTrack(wrap, t, side, dist, 12);
+      this.group.add(wrap);                         // now visible to later models
+    }
+    this._modelsScattered = true;
   }
 
   // pos just outside the road at param t, distance d beyond the curb
@@ -63,6 +174,8 @@ export class Environment {
 
   build(themeKey, mode) {
     this.clear();
+    this.currentTheme = themeKey;
+    this._modelsScattered = false;
     const theme = THEMES[themeKey];
     const pal = theme[mode];
     // bright toy material — slight self-glow keeps colors saturated & non-grey
@@ -77,6 +190,7 @@ export class Environment {
       lm.position.copy(this._outside(t, side, 42 + (i % 3) * 22, 0));
       lm.rotation.y = side > 0 ? Math.PI : 0;     // face the track
       this._ensureClear(lm, 4);                   // big pieces: keep a wider berth
+      lm.userData.avoid = true;                   // pretzels steer clear of these
       this.group.add(lm);
     }
 
@@ -259,6 +373,11 @@ export class Environment {
       }
     }
 
+    // themed GLB landmark models — pretzels (Berlin), stilettos (Vinted).
+    // Loads async; scatters here once the model is ready (after landmarks so
+    // it can steer clear of them).
+    this._scatterModels(themeKey);
+
     // ground & sky handled by Game via palette
     return pal;
   }
@@ -347,59 +466,8 @@ function garment(add, x, railY, color, type) {
 }
 
 // ============================================================
-//  Shape Building Guide implementations (see CLAUDE.md)
-//  Built to the documented spec exactly: the geometry constructors,
-//  component positions, Z rotations (degrees → radians), hex colors,
-//  MeshStandardMaterial, grouping and overall scale as written.
+//  Ampelmann figure + colored-geometry merge helpers
 // ============================================================
-const DEG = Math.PI / 180;
-
-// Pretzel — 4 torus objects grouped together.
-export function buildPretzel() {
-  const group = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({ color: 0xD2B48C }); // tan/brown
-  // [rotateZ (deg), x, y, z] straight from the guide
-  const parts = [
-    [45,   0.0,  0.5, 0], // Torus 1 (top)
-    [90,  -0.3, -0.2, 0], // Torus 2 (left)
-    [270,  0.3, -0.2, 0], // Torus 3 (right)
-    [180,  0.0, -0.8, 0], // Torus 4 (bottom)
-  ];
-  for (const [rz, x, y, z] of parts) {
-    const t = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.15, 16, 16), mat);
-    t.rotation.z = rz * DEG;
-    t.position.set(x, y, z);
-    group.add(t);
-  }
-  group.scale.setScalar(1.5); // 1.5 units overall
-  return group;
-}
-
-// High Heel Shoe (Ladies Stiletto) — 3 components grouped together.
-export function buildHighHeelShoe() {
-  const group = new THREE.Group();
-  const body = 0xFF1493;   // hot pink
-  const heelCol = 0x333333; // dark grey
-  // slight metallic sheen, shared style
-  const sheen = (c) => new THREE.MeshStandardMaterial({ color: c, metalness: 0.4, roughness: 0.35 });
-
-  const main = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.4, 0.8), sheen(body));
-  main.position.set(0, 0.2, 0);
-  group.add(main);
-
-  const heel = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.2), sheen(heelCol));
-  heel.position.set(0.25, -0.3, 0.3);
-  group.add(heel);
-
-  // Toe — stretched cone, color matches body
-  const toe = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.7, 16), sheen(body));
-  toe.rotation.x = Math.PI / 2; // point the cone forward along +z
-  toe.position.set(-0.3, 0, 0.4);
-  group.add(toe);
-
-  group.scale.setScalar(1.2); // 1.2 units overall height
-  return group;
-}
 
 // Ampelmann — extrude the traced SVG silhouette into an upright 3D figure.
 // The path 'd' is "M x,y x,y … Z": implicit line-tos, so it's just a polygon.
@@ -518,15 +586,7 @@ LANDMARKS.berlin = [
     add(Cyl(0.25, 0.25, 9, 8), grey(bad, 0xcfd6dd), 8, 9.5, 0);                          // fork handle
     for (let p = -1; p <= 1; p++) add(Cyl(0.12, 0.12, 2.4, 6), grey(bad, 0xcfd6dd), 8 + p * 0.45, 6.6, 0); // fork prongs
   },
-  // 5. Giant pretzel — twisted tan loop with salt, unmistakably a pretzel
-  ({ add, bad }) => {
-    const dough = grey(bad, 0xc98a3c);
-    add(Cyl(2, 2.4, 1, 12), grey(bad, 0x8a5a33), 0, 0.5, 0);          // base so it doesn't float
-    add(Tor(5, 1.3, Math.PI * 2), dough, 0, 7, 0);                    // outer loop
-    const t1 = add(Tor(2.2, 1.05, Math.PI * 1.15), dough, 0, 5.4, 0.3); t1.rotation.z = -0.7;  // crossed twist
-    const t2 = add(Tor(2.2, 1.05, Math.PI * 1.15), dough, 0, 5.4, -0.3); t2.rotation.z = Math.PI + 0.7;
-    for (let k = 0; k < 14; k++) { const a = k / 14 * Math.PI * 2; add(Sph(0.22, 6), grey(bad, 0xffffff), Math.cos(a) * 5, 7 + Math.sin(a) * 5, 1.4); } // salt
-  },
+  // (The giant pretzel landmark was replaced by the GLB model — see _scatterModels.)
 ];
 
 // ---- Berlin medium ----
@@ -556,12 +616,6 @@ MEDIUM.berlin = [
     add(Box(5.4, 1.6, 3.4), grey(bad, 0xfff2e0), 0, 1.4, 0);
     for (const [x, z] of [[-2.6, -1.8], [2.6, -1.8], [-2.6, 1.8], [2.6, 1.8]])
       add(Cyl(0.18, 0.18, 4.4, 8), grey(bad, 0xe8e8e8), x, 2.2, z);
-  },
-  // 4. Pretzel stand — cart with a big pretzel sign
-  ({ add, bad }) => {
-    add(Box(3, 2, 2), grey(bad, 0x8a5a33), 0, 1.4, 0);          // cart
-    for (const x of [-1.2, 1.2]) { const w = add(Cyl(0.5, 0.5, 0.3, 12), 0x222, x, 0.5, 1); w.rotation.z = Math.PI / 2; }
-    const sign = add(Tor(0.9, 0.3, Math.PI * 2), grey(bad, 0xc98a3c), 0, 4, 0); sign.rotation.x = 0.2;
   },
   // 5. Bicycle with front basket
   ({ add, bad }) => {
@@ -611,12 +665,6 @@ SMALL.berlin = [
     add(Cyl(0.32, 0.24, 0.9, 14), c, 0, 0.45, 0);
     add(Cyl(0.35, 0.35, 0.12, 14), 0xffffff, 0, 0.96, 0);
     add(Cyl(0.06, 0.06, 0.2, 8), 0xffffff, 0, 1.1, 0);
-  },
-  ({ g }) => { // 5 pretzel — built to the Shape Building Guide spec
-    const pretzel = buildPretzel();
-    const box = new THREE.Box3().setFromObject(pretzel);
-    pretzel.position.y -= box.min.y; // rest its lowest point on the ground
-    g.add(pretzel);
   },
   ({ add }) => { // 6 sausage bunch — linked sausages
     for (let k = 0; k < 4; k++) { const s = add(Cap(0.16, 0.5), 0xb5651d, -0.45 + k * 0.3, 0.5 + (k % 2) * 0.2, 0); s.rotation.z = 0.4; }
@@ -1036,20 +1084,6 @@ LANDMARKS.vinted = [
       add(Box(1.2, 2.5, 0.5), grey(bad, FASHION[h % FASHION.length]), x + 2, 14.6, 0).rotation.z = -0.6;
     }
   },
-  // 2. Shoe rack — massive multi-level shoe display
-  ({ add, bad }) => {
-    const frame = grey(bad, 0xb6c2cc);
-    for (const x of [-5, 5]) add(Box(0.5, 16, 3), frame, x, 8, 0);   // side frames
-    for (let s = 0; s < 5; s++) {
-      add(Box(10, 0.4, 3), frame, 0, 2 + s * 3, 0);                  // shelf
-      for (let p = 0; p < 5; p++) {                                  // shoes per shelf
-        const col = FASHION[(s + p) % FASHION.length];
-        const shoe = add(Cap(0.5, 1.1), grey(bad, col), -3.8 + p * 1.9, 2.7 + s * 3, 0.4);
-        shoe.rotation.z = Math.PI / 2; shoe.scale.set(1, 1, 0.8);
-        add(Box(1.2, 0.5, 1.2), grey(bad, col), -3.8 + p * 1.9, 2.4 + s * 3, 0.4); // toe block
-      }
-    }
-  },
   // 3. Clothing pile — a mountain of colorful garments
   ({ add, bad }) => {
     add(Cone(8, 4, 8), grey(bad, 0x3a4a52), 0, 2, 0);          // base heap silhouette
@@ -1064,20 +1098,7 @@ LANDMARKS.vinted = [
       g.rotation.set(r1 * 1.5, r2 * 3, r1 * 1.2);
     }
   },
-  // 4. Giant stiletto — oversized glossy high-heel pump with a thin spike heel
-  ({ add, bad }) => {
-    const red = grey(bad, 0xe21b4c), S = 1.7;
-    // pump silhouette (toe at +x, heel at -x): underside arches up — only the toe touches down
-    const raw = [[6, 0.3], [6.3, 1.6], [2.5, 2.6], [-0.6, 3.6], [-2.4, 4.5], [-3.5, 4.4],
-                 [-3.7, 2.3], [-2.8, 2.0], [-0.5, 1.5], [2.2, 0.5]];
-    const shape = new THREE.Shape();
-    raw.forEach(([x, y], k) => { const X = x * S, Y = y * S; k ? shape.lineTo(X, Y) : shape.moveTo(X, Y); });
-    shape.closePath();
-    add(new THREE.ExtrudeGeometry(shape, { depth: 3 * S, bevelEnabled: false }), red, 0, 0, -1.5 * S); // upper
-    const heel = add(Cone(0.55, 2.3 * S + 0.4, 10), red, -3.45 * S, (2.3 * S) / 2, 0); heel.rotation.x = Math.PI; // thin spike heel
-    add(Box(5.5 * S, 0.5, 2.4 * S), grey(bad, 0xf2c9d2), 3.2 * S, 0.25, 0);   // glossy sole under the front
-    const hole = add(Cyl(2, 2, 0.5, 16), grey(bad, 0x7a0f2a), -2.0 * S, 3.95 * S, 0); hole.rotation.z = 0.5; hole.scale.set(1.3, 1, 1.2); // foot opening
-  },
+  // (The giant stiletto landmark was replaced by the GLB model — see _scatterModels.)
 ];
 
 MEDIUM.vinted = [
@@ -1128,10 +1149,6 @@ MEDIUM.vinted = [
 ];
 
 SMALL.vinted = [
-  ({ add, i }) => { // 0 sneaker
-    const s = add(Cap(0.3, 0.8), FASHION[i % FASHION.length], 0, 0.3, 0); s.rotation.z = Math.PI / 2; s.scale.set(1, 1, 0.7);
-    add(Box(0.9, 0.2, 0.5), 0xffffff, 0.1, 0.12, 0);           // sole
-  },
   ({ add }) => { // 1 shirt button
     const b = add(Cyl(0.35, 0.35, 0.1, 16), 0xf0f0f0, 0, 0.3, 0); b.rotation.x = Math.PI / 2;
     for (const [x, z] of [[-0.1, -0.1], [0.1, -0.1], [-0.1, 0.1], [0.1, 0.1]]) add(Sph(0.04, 6), 0x888, x, 0.31, z);
@@ -1151,12 +1168,6 @@ SMALL.vinted = [
   ({ add, i }) => { // 5 handbag
     add(Box(0.7, 0.5, 0.3), FASHION[i % FASHION.length], 0, 0.5, 0);
     add(Tor(0.2, 0.04, Math.PI), 0x333, 0, 0.85, 0).rotation.x = Math.PI / 2;
-  },
-  ({ g }) => { // 6 high-heel shoe — built to the Shape Building Guide spec
-    const shoe = buildHighHeelShoe();
-    const box = new THREE.Box3().setFromObject(shoe);
-    shoe.position.y -= box.min.y; // rest its lowest point on the ground
-    g.add(shoe);
   },
   ({ add, i }) => { // 7 hat
     add(Cyl(0.4, 0.4, 0.06, 14), FASHION[i % FASHION.length], 0, 0.25, 0);  // brim
