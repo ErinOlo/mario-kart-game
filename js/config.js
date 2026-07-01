@@ -30,6 +30,16 @@ export const KART = {
   collideDecay: 0.02,      // per-second decay base for the knockback velocity
 };
 
+// Player's SPACE-bar weapon: a straight-line shot that slows whoever it hits.
+export const WEAPON = {
+  projectileSpeed: 90,     // units/sec — well above kart top speed so it reads as "fast"
+  slowdownDuration: 4,     // seconds the hit racer stays slowed (spec: 3–5s)
+  slowdownEffect: 0.5,     // fraction of speed removed while slowed (0.5 = 50% slower)
+  cooldown: 1.5,           // seconds between shots — enforces "one at a time"
+  range: 3.0,              // seconds a projectile lives before self-expiring (fallback)
+  hitRadius: 2.4,          // contact distance to a racer
+};
+
 // ---- Track centerline control points (XZ plane, y = 0) ----
 // A closed circuit with a mix of sweeping and tight turns for drifting.
 export const TRACK_POINTS = [

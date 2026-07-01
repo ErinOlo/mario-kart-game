@@ -29,6 +29,8 @@ export class Kart {
     // status effects
     this.boostTimer = 0;
     this.hitTimer = 0;
+    this.slowFactor = 1;       // speed multiplier applied while hitTimer > 0
+    this.shootCooldown = 0;    // SPACE-weapon cooldown (player only)
     this.invuln = false;
 
     // drift state
@@ -61,7 +63,7 @@ export class Kart {
     this.speed = 0; this.lateralVel = 0;
     this.bump.set(0, 0, 0);
     this.lap = 0; this.progress = 0; this.finished = false; this.finishTime = null;
-    this.boostTimer = 0; this.hitTimer = 0; this.invuln = false;
+    this.boostTimer = 0; this.hitTimer = 0; this.slowFactor = 1; this.shootCooldown = 0; this.invuln = false;
     this.drifting = false; this.driftCharge = 0;
     this.lastT = this.track.project(pos).t;
     this._syncMesh();
@@ -77,7 +79,8 @@ export class Kart {
     const left = input.left, right = input.right;
     let max = KART.maxSpeed;
     if (this.boostTimer > 0) { max *= KART.boostMult; this.boostTimer -= dt; }
-    if (this.hitTimer > 0) { max *= 0.45; this.hitTimer -= dt; }
+    if (this.hitTimer > 0) { max *= this.slowFactor; this.hitTimer -= dt; }
+    if (this.shootCooldown > 0) this.shootCooldown -= dt;
 
     // throttle / brake
     if (fwd) this.speed += KART.accel * dt;
@@ -146,7 +149,7 @@ export class Kart {
 
     // throttle: slow a touch on tight turns
     let max = KART.aiMaxSpeed * (1 - Math.min(0.35, Math.abs(diff)));
-    if (this.hitTimer > 0) { max *= 0.5; this.hitTimer -= dt; }
+    if (this.hitTimer > 0) { max *= this.slowFactor; this.hitTimer -= dt; }
     this.speed = THREE.MathUtils.lerp(this.speed, max, dt * 1.5);
 
     this._integrate(dt);
@@ -224,7 +227,17 @@ export class Kart {
   applyHit() {
     if (this.invuln || this.finished) return false;
     this.speed *= 0.35;
+    this.slowFactor = 0.45;
     this.hitTimer = 1.4;
+    return true;
+  }
+
+  // Slowed by the player's SPACE weapon: cut top speed by `effect` (0..1) for `duration` sec.
+  applySlow(duration, effect) {
+    if (this.invuln || this.finished) return false;
+    this.slowFactor = Math.max(0.05, 1 - effect);
+    this.hitTimer = Math.max(this.hitTimer, duration);
+    this.speed *= this.slowFactor;      // immediate jolt so the hit feels responsive
     return true;
   }
 

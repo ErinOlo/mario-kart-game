@@ -144,6 +144,11 @@ class AudioEngine {
     this._tone(120, 0.08, 'square', 0.22);
     this._tone(90, 0.1, 'square', 0.2, 0.03);
   }
+  sfxShoot() {            // quick descending laser zap when firing the weapon
+    if (!this.ok) return;
+    this._tone(1200, 0.09, 'sawtooth', 0.28);
+    this._tone(700, 0.12, 'sawtooth', 0.24, 0.05);
+  }
   sfxDriftBoost() { this._tone(440, 0.08, 'square', 0.25); this._tone(990, 0.16, 'square', 0.28, 0.06); }
   sfxCountdown(go = false) {
     if (go) { this._tone(880, 0.4, 'square', 0.35); }

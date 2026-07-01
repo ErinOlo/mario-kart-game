@@ -1,9 +1,9 @@
 // ============================================================
-//  Keyboard input — WASD + arrows, Space to drift.
+//  Keyboard input — WASD + arrows, Shift to drift, Space to shoot.
 // ============================================================
 export class Input {
   constructor() {
-    this.state = { up: false, down: false, left: false, right: false, drift: false };
+    this.state = { up: false, down: false, left: false, right: false, drift: false, shoot: false };
     this._onKey = this._onKey.bind(this);
     window.addEventListener('keydown', (e) => this._onKey(e, true));
     window.addEventListener('keyup', (e) => this._onKey(e, false));
@@ -19,7 +19,8 @@ export class Input {
       case 'KeyS': case 'ArrowDown': this.state.down = down; break;
       case 'KeyA': case 'ArrowLeft': this.state.left = down; break;
       case 'KeyD': case 'ArrowRight': this.state.right = down; break;
-      case 'Space': this.state.drift = down; break;
+      case 'ShiftLeft': case 'ShiftRight': this.state.drift = down; break;
+      case 'Space': this.state.shoot = down; break;
       default: return;
     }
     // stop the page from scrolling on arrows/space

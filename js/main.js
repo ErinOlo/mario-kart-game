@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { RACE, RACERS, THEMES, KART } from './config.js';
+import { RACE, RACERS, THEMES, KART, WEAPON } from './config.js';
 import { Track } from './track.js';
 import { Environment } from './environment.js';
 import { Pickups } from './powerups.js';
@@ -282,11 +282,26 @@ class Game {
     // kart-to-kart bumping (after everyone has moved this frame)
     this._resolveKartCollisions();
 
+    // player weapon — SPACE fires a fast forward shot (cooldown + one-at-a-time)
+    if (this.input.state.shoot && this.player.shootCooldown <= 0
+        && !this.player.finished && !this.pickups.hasPlayerShot()) {
+      this.pickups.firePlayerShot(this.player, WEAPON.projectileSpeed);
+      this.player.shootCooldown = WEAPON.cooldown;
+      Audio.sfxShoot();
+    }
+
     // pickups & projectiles
     this.pickups.update(dt, this.camera);
     if (this.pickups.checkProjectileHits(this.player)) {
       Audio.sfxHit();
       this._spawnBurst(0x9b59ff);
+    }
+    // player's shots slowing rival racers
+    for (const hitKart of this.pickups.checkPlayerHits(this.karts)) {
+      if (hitKart.applySlow(WEAPON.slowdownDuration, WEAPON.slowdownEffect)) {
+        Audio.sfxHit();
+        this._spawnBurst(0x25d0ff, { origin: hitKart.pos, count: 10, spread: 6 });
+      }
     }
     for (const def of this.pickups.checkCollect(this.player)) this._collect(def);
 
@@ -430,6 +445,7 @@ class Game {
     const spread = opts.spread || 8;
     const life = opts.life || 0.6;
     const hues = opts.hues;
+    const origin = opts.origin || this.player.pos;
     for (let i = 0; i < count; i++) {
       const c = hues
         ? new THREE.Color().setHSL(hues[i % hues.length] / 360, 0.9, 0.55)
@@ -438,7 +454,7 @@ class Game {
         new THREE.IcosahedronGeometry(0.35),
         new THREE.MeshBasicMaterial({ color: c })
       );
-      m.position.copy(this.player.pos).setY(1);
+      m.position.copy(origin).setY(1);
       const a = Math.random() * Math.PI * 2;
       const v = new THREE.Vector3(
         Math.cos(a) * Math.random() * spread,

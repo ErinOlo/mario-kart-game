@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PICKUPS } from './config.js';
+import { PICKUPS, WEAPON } from './config.js';
 
 // ============================================================
 //  Pickups — fixed power-up objects on the track + AI projectiles.
@@ -242,6 +242,9 @@ export class Pickups {
     }
     this.projectiles = this.projectiles.filter((p) => {
       if (p.life <= 0) { this.scene.remove(p.mesh); return false; }
+      // disappear once it leaves the road (off-track)
+      const lat = Math.abs(this.track.project(p.mesh.position).lateral);
+      if (lat > this.track.width / 2 + 1.5) { this.scene.remove(p.mesh); return false; }
       return true;
     });
   }
@@ -280,6 +283,7 @@ export class Pickups {
     if (playerKart.invuln) return false;
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const p = this.projectiles[i];
+      if (p.player) continue;                       // player's own shots never hit the player
       if (p.mesh.position.distanceTo(playerKart.pos) < 2.4) {
         this.scene.remove(p.mesh);
         this.projectiles.splice(i, 1);
@@ -287,6 +291,49 @@ export class Pickups {
       }
     }
     return false;
+  }
+
+  // Player's SPACE weapon: launch a fast glowing orb straight ahead of the kart.
+  firePlayerShot(kart, speed) {
+    const g = new THREE.Group();
+    const core = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(0.55, 0),
+      new THREE.MeshLambertMaterial({ color: 0x8ffcff, emissive: 0x25d0ff, emissiveIntensity: 0.9 })
+    );
+    g.add(core);
+    const halo = new THREE.Mesh(
+      new THREE.SphereGeometry(0.95, 12, 12),
+      new THREE.MeshBasicMaterial({ color: 0x25d0ff, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false })
+    );
+    g.add(halo);
+    const dir = new THREE.Vector3(Math.sin(kart.heading), 0, Math.cos(kart.heading));
+    g.position.copy(kart.pos).addScaledVector(dir, 2.6).setY(1.2);   // spawn just ahead of the nose
+    this.scene.add(g);
+    this.projectiles.push({ mesh: g, vel: dir.clone().multiplyScalar(speed), life: WEAPON.range, from: kart, player: true });
+  }
+
+  // returns the karts hit by the player's shots this frame (removes those projectiles)
+  checkPlayerHits(karts) {
+    const hits = [];
+    for (let i = this.projectiles.length - 1; i >= 0; i--) {
+      const p = this.projectiles[i];
+      if (!p.player) continue;
+      for (const k of karts) {
+        if (k === p.from || k.finished) continue;
+        if (p.mesh.position.distanceTo(k.pos) < WEAPON.hitRadius) {
+          this.scene.remove(p.mesh);
+          this.projectiles.splice(i, 1);
+          hits.push(k);
+          break;
+        }
+      }
+    }
+    return hits;
+  }
+
+  // true if the player currently has a live shot in flight (enforces one-at-a-time)
+  hasPlayerShot() {
+    return this.projectiles.some((p) => p.player);
   }
 
   clearProjectiles() {
