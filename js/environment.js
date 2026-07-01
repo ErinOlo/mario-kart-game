@@ -3,6 +3,7 @@ import { THEMES } from './config.js';
 import { createSakotis } from './sakotis.js';
 import { createStrawberry } from './strawberry.js';
 import { AMPELMANN } from './ampelmann.js';
+import { createTulip } from './tulip.js';
 
 // ============================================================
 //  Environment — themed scenery scattered around the fixed track.
@@ -104,6 +105,89 @@ export class Environment {
       small.rotation.y = Math.sin(i * 2.1) * Math.PI;
       this._ensureClear(small, 2.5);
       this.group.add(small);
+    }
+
+    // ---- Amsterdam only: fill the open ground with a grid of tulips ----
+    // ~4-unit grid across the track's bounding box (+margin); a cell becomes a
+    // tulip only if it's at least CLEAR units from the track centerline, so the
+    // road/curbs stay clear.
+    //
+    // PERF: ~4k tulips as individual groups = ~41k draw calls (very slow). Instead
+    // we build a few PROTOTYPE tulips, merge each one's parts by material, and draw
+    // the whole field with InstancedMesh — ~24 draw calls total, 8 tulip builds.
+    if (themeKey === 'amsterdam') {
+      const SPACING = 4, CLEAR = 12, MARGIN = 15, CLEAR2 = CLEAR * CLEAR;
+      const pts = this.track._pts;
+      let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+      for (const p of pts) {
+        if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+        if (p.z < minZ) minZ = p.z; if (p.z > maxZ) maxZ = p.z;
+      }
+
+      // 1) collect the clear grid cells (with a per-tulip facing)
+      const placements = [];
+      for (let x = minX - MARGIN; x <= maxX + MARGIN; x += SPACING) {
+        for (let z = minZ - MARGIN; z <= maxZ + MARGIN; z += SPACING) {
+          let dmin2 = Infinity;
+          for (const p of pts) {
+            const dx = x - p.x, dz = z - p.z, d = dx * dx + dz * dz;
+            if (d < dmin2) dmin2 = d;
+          }
+          if (dmin2 >= CLEAR2) placements.push({ x, z, ry: Math.random() * Math.PI * 2 });
+        }
+      }
+
+      if (placements.length) {
+        // 2) build PROTO prototype tulips and merge each into petal / leaf / stem geometry
+        const PROTO = Math.min(8, placements.length);
+        const petalMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.0, side: THREE.DoubleSide });
+        const leafMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.72, metalness: 0.0, side: THREE.DoubleSide });
+        const stemMat = new THREE.MeshStandardMaterial({ color: 0x6e8a3c, roughness: 0.7, metalness: 0.0 });
+        const protoGeo = [];
+        for (let p = 0; p < PROTO; p++) {
+          const t = createTulip(THREE, { size: 0.75, seed: p + 1 }); // 25% smaller
+          const bloom = t.userData.bloom;
+          const petalGeos = bloom.children.map((m) => m.geometry);
+          const leafGeos = [], stemGeos = [];
+          for (const child of t.children) {
+            if (child === bloom) continue;
+            (child.geometry.attributes.color ? leafGeos : stemGeos).push(child.geometry);
+          }
+          protoGeo.push({
+            petal: mergeColoredGeoms(THREE, petalGeos),
+            leaf: mergeColoredGeoms(THREE, leafGeos),
+            stem: stemGeos[0],
+          });
+        }
+
+        // 3) count instances per prototype (round-robin assignment for variety)
+        const counts = new Array(PROTO).fill(0);
+        placements.forEach((pl, i) => { pl.proto = i % PROTO; counts[pl.proto]++; });
+
+        // 4) one InstancedMesh per prototype × part; fill per-tulip transforms
+        const inst = [];
+        for (let p = 0; p < PROTO; p++) {
+          inst.push({
+            petal: new THREE.InstancedMesh(protoGeo[p].petal, petalMat, counts[p]),
+            leaf: new THREE.InstancedMesh(protoGeo[p].leaf, leafMat, counts[p]),
+            stem: new THREE.InstancedMesh(protoGeo[p].stem, stemMat, counts[p]),
+          });
+        }
+        const mtx = new THREE.Matrix4(), q = new THREE.Quaternion();
+        const up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1), posv = new THREE.Vector3();
+        const fill = new Array(PROTO).fill(0);
+        for (const pl of placements) {
+          q.setFromAxisAngle(up, pl.ry);
+          mtx.compose(posv.set(pl.x, 0, pl.z), q, one); // origin (y=0) is the stem base → on ground
+          const im = inst[pl.proto], k = fill[pl.proto]++;
+          im.petal.setMatrixAt(k, mtx); im.leaf.setMatrixAt(k, mtx); im.stem.setMatrixAt(k, mtx);
+        }
+        for (const im of inst) for (const key of ['petal', 'leaf', 'stem']) {
+          im[key].instanceMatrix.needsUpdate = true;
+          im[key].frustumCulled = false;   // bounds are per-prototype, not per-field → don't cull the batch
+          this.group.add(im[key]);
+        }
+      }
     }
 
     // ---- Berlin only: Ampelmann + 100 strawberries scattered across the field ----
@@ -316,6 +400,34 @@ function buildAmpelmann(which = 'walk', targetHeight = 16) {
   group.add(mesh);
   group.scale.setScalar(targetHeight / fig.height); // feet stay at y=0 under uniform scale
   return group;
+}
+
+// Merge several indexed BufferGeometries (position/normal/color) into one.
+// Geometries without a color attribute default to white so the buffer stays uniform.
+function mergeColoredGeoms(THREE, geos) {
+  let vtot = 0, itot = 0;
+  for (const g of geos) {
+    vtot += g.attributes.position.count;
+    itot += g.index ? g.index.count : g.attributes.position.count;
+  }
+  const pos = new Float32Array(vtot * 3), nrm = new Float32Array(vtot * 3), col = new Float32Array(vtot * 3);
+  const idx = new Uint32Array(itot);
+  let vo = 0, io = 0;
+  for (const g of geos) {
+    const p = g.attributes.position, n = g.attributes.normal, c = g.attributes.color;
+    pos.set(p.array, vo * 3);
+    if (n) nrm.set(n.array, vo * 3);
+    if (c) col.set(c.array, vo * 3); else col.fill(1, vo * 3, vo * 3 + p.count * 3);
+    if (g.index) { const gi = g.index.array; for (let k = 0; k < gi.length; k++) idx[io + k] = gi[k] + vo; io += gi.length; }
+    else { for (let k = 0; k < p.count; k++) idx[io + k] = vo + k; io += p.count; }
+    vo += p.count;
+  }
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  out.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
+  out.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  out.setIndex(new THREE.BufferAttribute(idx, 1));
+  return out;
 }
 
 // ============================================================
