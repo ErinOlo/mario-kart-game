@@ -83,25 +83,25 @@ export const THEMES = {
   berlin: {
     name: 'BERLIN',
     blurb: 'TV Tower, currywurst & techno',
-    good: { sky: 0x6cc6ff, fog: 0xbdeaff, ground: 0x4fd35f, road: 0x1f9fff, accent: 0xff2e63 },
+    good: { sky: 0x6cc6ff, fog: 0xbdeaff, ground: 0xffcc00, road: 0x000000, accent: 0xff2e63 },
     bad:  { sky: 0x565a66, fog: 0x474a54, ground: 0x4a4d44, road: 0x26282f, accent: 0x8a8d99 },
   },
   amsterdam: {
     name: 'AMSTERDAM',
     blurb: 'Canals, windmills & stroopwafels',
-    good: { sky: 0x7fe0d6, fog: 0xc6f3ee, ground: 0x4fd35f, road: 0x1fb6ff, accent: 0xff5ca8 },
+    good: { sky: 0x7fe0d6, fog: 0xc6f3ee, ground: 0xe42c8b, road: 0x21468b, accent: 0xff5ca8 },
     bad:  { sky: 0x5d646b, fog: 0x4d5258, ground: 0x4d5046, road: 0x2a2926, accent: 0x6f7a80 },
   },
   vilnius: {
     name: 'VILNIUS',
     blurb: 'Gediminas Tower, amber & hoops',
-    good: { sky: 0xffd066, fog: 0xffe9bf, ground: 0x5fd84a, road: 0x7ed957, accent: 0xff3b2e },
+    good: { sky: 0xffd066, fog: 0xffe9bf, ground: 0x00a31c, road: 0xfdb913, accent: 0xff3b2e },
     bad:  { sky: 0x60584e, fog: 0x4c463d, ground: 0x4f4a3e, road: 0x29251f, accent: 0x9a7f5e },
   },
   vinted: {
     name: 'VINTED',
     blurb: 'Mountains of secondhand fashion',
-    good: { sky: 0xb6e6ff, fog: 0xdcf4ff, ground: 0x36d6b0, road: 0x1f9fff, accent: 0x0bd3dd },
+    good: { sky: 0xb6e6ff, fog: 0xdcf4ff, ground: 0x007782, road: 0x004654, accent: 0x0bd3dd },
     bad:  { sky: 0x585c66, fog: 0x474b54, ground: 0x46504a, road: 0x23272e, accent: 0x5f8a8c },
   },
 };
