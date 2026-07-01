@@ -75,10 +75,16 @@ export class Environment {
 
     // ---- big landmarks — far out so they loom as a skyline (depth layer 1) ----
     // pulled a little closer than before so the iconic shapes are clearly visible.
+    let hillPlaced = false;
     for (let i = 0; i < 12; i++) {
       const t = i / 12 + 0.02;
       const side = i % 2 ? 1 : -1;
       const lm = this._landmark(themeKey, mode, m, i);
+      // the landmark array is cycled, so some entries recur — keep only one Hill of Crosses
+      if (lm.userData.isHillOfCrosses) {
+        if (hillPlaced) { lm.traverse((o) => { o.geometry?.dispose?.(); o.material?.dispose?.(); }); continue; }
+        hillPlaced = true;
+      }
       lm.position.copy(this._outside(t, side, 42 + (i % 3) * 22, 0));
       lm.rotation.y = side > 0 ? Math.PI : 0;     // face the track
       this._ensureClear(lm, 4);                   // big pieces: keep a wider berth
@@ -923,7 +929,9 @@ LANDMARKS.vilnius = [
     add(Cyl(0.1, 0.1, 1.4, 6), grey(bad, 0xd4af37), 8, 24, 0);
   },
   // 3. Hill of Crosses — distinctive mound bristling with crosses
-  ({ add, bad }) => {
+  ({ g, add, bad }) => {
+    g.scale.setScalar(2.5); // 2.5× bigger (position unchanged)
+    g.userData.isHillOfCrosses = true; // only one is kept (see build() landmark loop)
     add(Cone(9, 5, 16), grey(bad, 0x7a6a4a), 0, 2.5, 0);        // mound
     let n = 0;
     for (let ring = 0; ring < 3; ring++) {
