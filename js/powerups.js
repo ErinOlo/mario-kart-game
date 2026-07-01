@@ -162,18 +162,43 @@ export class Pickups {
         break;
       }
       case 'slowmo': {
-        // big mushroom / cannabis side object
-        const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.8, 2, 12), m(0xf3e5d0, { emissiveIntensity: 0.2 }));
-        g.add(stem);
-        const cap = new THREE.Mesh(new THREE.SphereGeometry(1.6, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2), m(0xcc3344, { emissiveIntensity: 0.5 }));
-        cap.position.y = 1; cap.scale.y = 0.8; g.add(cap);
-        for (let i = 0; i < 5; i++) {
-          const dot = new THREE.Mesh(new THREE.SphereGeometry(0.25, 8, 8), m(0xffffff, { emissiveIntensity: 0.6 }));
-          const a = i / 5 * Math.PI * 2;
-          dot.position.set(Math.cos(a) * 1.0, 1.4, Math.sin(a) * 1.0); g.add(dot);
+        // cannabis leaf: 7 elongated pointed leaflets fanned around a central stem
+        const leafMat = m(0x33cc44, { emissiveIntensity: 0.85 });
+        // build a single pointed-ellipse leaflet shape, extruded for a bit of depth
+        const leafShape = new THREE.Shape();
+        leafShape.moveTo(0, 0);
+        leafShape.bezierCurveTo(0.18, 0.5, 0.12, 1.1, 0, 1.5);   // up one side to the tip
+        leafShape.bezierCurveTo(-0.12, 1.1, -0.18, 0.5, 0, 0);   // back down the other side
+        const leafGeo = new THREE.ExtrudeGeometry(leafShape, { depth: 0.06, bevelEnabled: false });
+        // base of the leaflet sits at the origin so it fans out from the stem
+        leafGeo.center();
+        leafGeo.translate(0, 0.75, 0);
+        // 7 leaflets fanned out, centre tallest, shrinking toward the edges
+        const angles = [-1.05, -0.7, -0.35, 0, 0.35, 0.7, 1.05];
+        for (let i = 0; i < angles.length; i++) {
+          const leaf = new THREE.Mesh(leafGeo, leafMat);
+          const len = 1 - Math.abs(angles[i]) * 0.45; // outer leaflets a bit shorter
+          leaf.scale.set(len, len, 1);
+          leaf.rotation.z = angles[i];
+          g.add(leaf);
         }
-        g.scale.setScalar(1.4);
-        g.userData.icon = '🍄'; g.userData.spin = 0.8;
+        // thin central stem
+        const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.2, 8), m(0x2e8b2e, { emissiveIntensity: 0.5 }));
+        stem.position.y = -0.6; g.add(stem);
+        g.scale.setScalar(2.4);
+
+        // ring of rainbow sparkles around the leaf
+        const rainbow = [0xff0000, 0xff8800, 0xffee00, 0x33cc44, 0x00ccff, 0x3344ff, 0xaa33ff, 0xff33cc];
+        const sparkles = [];
+        for (let i = 0; i < 8; i++) {
+          const sp = new THREE.Mesh(new THREE.IcosahedronGeometry(0.12, 0), m(rainbow[i], { emissiveIntensity: 0.9 }));
+          const a = i / 8 * Math.PI * 2;
+          sp.position.set(Math.cos(a) * 2.2, 0, Math.sin(a) * 2.2);
+          g.add(sp);
+          sparkles.push(sp);
+        }
+        g.userData.sparkles = sparkles;
+        g.userData.icon = '🍁'; g.userData.spin = 0.8;
         break;
       }
     }
@@ -190,6 +215,19 @@ export class Pickups {
       it.mesh.position.y = baseY + Math.sin(tnow * 2 + it.def.t * 10) * 0.2;
       if (it.mesh.userData.billboard && camera) {
         it.mesh.rotation.y = Math.atan2(camera.position.x - it.mesh.position.x, camera.position.z - it.mesh.position.z);
+      }
+      if (it.active && it.def.type === 'slowmo' && it.mesh.userData.sparkles) {
+        const sparkles = it.mesh.userData.sparkles;
+        for (let i = 0; i < sparkles.length; i++) {
+          const sp = sparkles[i];
+          // orbit around the Y axis, each sparkle offset by its index so they fan out
+          const a = tnow * 1.5 + (i / sparkles.length) * Math.PI * 2;
+          const r = 2.2;
+          sp.position.set(Math.cos(a) * r, Math.sin(tnow * 2 + i) * 0.4, Math.sin(a) * r);
+          // pulse scale with a sine wave so they twinkle
+          const s = 0.7 + Math.abs(Math.sin(tnow * 4 + i * 0.8)) * 0.8;
+          sp.scale.setScalar(s);
+        }
       }
       if (!it.active) {
         it.respawn -= dt;

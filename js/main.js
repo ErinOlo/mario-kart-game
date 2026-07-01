@@ -193,14 +193,45 @@ class Game {
       case 'mode':
         this._onModePortal(def.mode);
         break;
-      case 'slowmo':
+      case 'slowmo': {
         this.slowMoTimer = 15;
         this.player.invuln = true;
         Audio.sfxSlowmo();
         Audio.setMusicMode('slowmo');
         this.pickups.clearProjectiles();
-        this.ui.banner('🍄 SLOW-MO — invincible', 1800);
+        this.ui.banner('✨ Look around,\nSavour the moment\nTime is slowing\nFor all tournament ✨ ', 3500);
+
+        // 1. full-screen white flash
+        let flash = document.getElementById('flash-overlay');
+        if (!flash) {
+          flash = document.createElement('div');
+          flash.id = 'flash-overlay';
+          flash.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:999;background:#fff;opacity:0;transition:opacity 0.08s';
+          document.body.appendChild(flash);
+        }
+        flash.style.transition = 'opacity 0.08s';
+        flash.style.opacity = '0.85';
+        setTimeout(() => {
+          flash.style.transition = 'opacity 0.4s';
+          flash.style.opacity = '0';
+        }, 80);
+
+        // 2. big rainbow particle burst
+        const hues = [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330];
+        this._spawnBurst(0xffffff, { count: 60, hues, velY: 12, spread: 14, life: 1.8 });
+
+        // 3. hallucinogenic phase for the duration of slow-mo
+        if (this.halluciTimer) clearInterval(this.halluciTimer);
+        let h = 0;
+        this.scene.fog.near = 60;
+        this.scene.fog.far = 200;
+        this.halluciTimer = setInterval(() => {
+          h = (h + 0.07) % 1;
+          this.scene.background.setHSL(h, 0.9, 0.55);
+          this.scene.fog.color.setHSL((h + 0.5) % 1, 0.9, 0.45);
+        }, 400);
         break;
+      }
     }
   }
 
@@ -229,6 +260,13 @@ class Game {
         this.player.invuln = false;
         Audio.setMusicMode(this.mode);
         this.ui.banner('▶ NORMAL SPEED', 800);
+        // end hallucinogenic phase — restore theme palette & fog distances
+        if (this.halluciTimer) { clearInterval(this.halluciTimer); this.halluciTimer = null; }
+        const pal = THEMES[this.theme][this.mode];
+        this.scene.background.setHex(pal.sky);
+        this.scene.fog.color.setHex(pal.fog);
+        this.scene.fog.near = 120;
+        this.scene.fog.far = 520;
       }
     }
     const timeScale = this.slowMoTimer > 0 ? 0.4 : 1.0;
@@ -279,7 +317,7 @@ class Game {
     const position = standings.indexOf(this.player) + 1;
 
     let powerup = null;
-    if (this.slowMoTimer > 0) powerup = { icon: '🍄', label: 'SLOW-MO', time: this.slowMoTimer };
+    if (this.slowMoTimer > 0) powerup = { icon: '🌿', label: 'RELAX MODE', time: this.slowMoTimer };
     else if (this.player.boostTimer > 0) powerup = { icon: '⚡', label: 'BOOST', time: this.player.boostTimer };
 
     this.ui.updateHUD({
@@ -338,17 +376,29 @@ class Game {
     this.scene.add(m);
     this.particles.push({ mesh: m, life: 0.5, max: 0.5 });
   }
-  _spawnBurst(color) {
-    for (let i = 0; i < 12; i++) {
+  _spawnBurst(color, opts = {}) {
+    const count = opts.count || 12;
+    const velY = opts.velY || 8;
+    const spread = opts.spread || 8;
+    const life = opts.life || 0.6;
+    const hues = opts.hues;
+    for (let i = 0; i < count; i++) {
+      const c = hues
+        ? new THREE.Color().setHSL(hues[i % hues.length] / 360, 0.9, 0.55)
+        : color;
       const m = new THREE.Mesh(
         new THREE.IcosahedronGeometry(0.35),
-        new THREE.MeshBasicMaterial({ color })
+        new THREE.MeshBasicMaterial({ color: c })
       );
       m.position.copy(this.player.pos).setY(1);
       const a = Math.random() * Math.PI * 2;
-      const v = new THREE.Vector3(Math.cos(a) * 8, 4 + Math.random() * 4, Math.sin(a) * 8);
+      const v = new THREE.Vector3(
+        Math.cos(a) * Math.random() * spread,
+        4 + Math.random() * (velY - 4),
+        Math.sin(a) * Math.random() * spread
+      );
       this.scene.add(m);
-      this.particles.push({ mesh: m, life: 0.6, max: 0.6, vel: v });
+      this.particles.push({ mesh: m, life, max: life, vel: v });
     }
   }
   _updateParticles(dt) {
