@@ -1,7 +1,11 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { THEMES } from './config.js';
 import { createSakotis } from './sakotis.js';
 import { createStrawberry } from './strawberry.js';
+
+// Berlin's pretzel is now a real GLB model rather than procedural geometry.
+const PRETZEL_MODEL_URL = 'public/models/pretzel.glb';
 
 // ============================================================
 //  Environment — themed scenery scattered around the fixed track.
@@ -22,6 +26,52 @@ export class Environment {
     this.group = new THREE.Group();
     scene.add(this.group);
     this.spinners = [];   // windmill sails, döner spits — rotated each frame
+
+    // Berlin's giant pretzel landmark, loaded once from a GLB and cloned per build.
+    this.pretzelModel = null;
+    this.currentTheme = null;
+    this._pretzelAdded = false;
+    this._loadPretzelModel();
+  }
+
+  // Load the GLB pretzel once; drop it in immediately if Berlin is already showing.
+  _loadPretzelModel() {
+    new GLTFLoader().load(
+      PRETZEL_MODEL_URL,
+      (gltf) => {
+        this.pretzelModel = gltf.scene;
+        this.pretzelModel.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+        if (this.currentTheme === 'berlin') this._addPretzelLandmark();
+      },
+      undefined,
+      (err) => console.error('Failed to load pretzel GLB:', err),
+    );
+  }
+
+  // Clone the loaded pretzel, scale it to a skyline-landmark height, rest it on
+  // the ground beside the track, and add it to the scene. No-op until loaded.
+  _addPretzelLandmark() {
+    if (!this.pretzelModel || this._pretzelAdded) return;
+    const model = this.pretzelModel.clone(true);
+
+    // scale so the model reads as a prominent landmark (~30u tall, like the gate)
+    const size = new THREE.Vector3();
+    new THREE.Box3().setFromObject(model).getSize(size);
+    const targetHeight = 30;
+    model.scale.setScalar(size.y > 0 ? targetHeight / size.y : 1);
+
+    // place it off to the side of the track early in the lap so it's clearly seen
+    const wrap = new THREE.Group();
+    wrap.name = 'pretzelLandmark';
+    wrap.add(model);
+    wrap.position.copy(this._outside(0.11, 1, 46, 0));
+    // rest its lowest point on the ground after scaling
+    const box = new THREE.Box3().setFromObject(wrap);
+    model.position.y -= box.min.y;
+    wrap.rotation.y = Math.PI;                 // face the track
+    this._ensureClear(wrap, 5);
+    this.group.add(wrap);
+    this._pretzelAdded = true;
   }
 
   // pos just outside the road at param t, distance d beyond the curb
@@ -61,6 +111,8 @@ export class Environment {
 
   build(themeKey, mode) {
     this.clear();
+    this.currentTheme = themeKey;
+    this._pretzelAdded = false;
     const theme = THEMES[themeKey];
     const pal = theme[mode];
     // bright toy material — slight self-glow keeps colors saturated & non-grey
@@ -117,6 +169,9 @@ export class Environment {
         this._ensureClear(straw, 2);                     // keep off the racing path
         this.group.add(straw);
       }
+
+      // the 3D pretzel landmark (loads async; added here once ready)
+      this._addPretzelLandmark();
     }
 
     // ground & sky handled by Game via palette
@@ -212,28 +267,6 @@ function garment(add, x, railY, color, type) {
 //  component positions, Z rotations (degrees → radians), hex colors,
 //  MeshStandardMaterial, grouping and overall scale as written.
 // ============================================================
-const DEG = Math.PI / 180;
-
-// Pretzel — 4 torus objects grouped together.
-export function buildPretzel() {
-  const group = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({ color: 0xD2B48C }); // tan/brown
-  // [rotateZ (deg), x, y, z] straight from the guide
-  const parts = [
-    [45,   0.0,  0.5, 0], // Torus 1 (top)
-    [90,  -0.3, -0.2, 0], // Torus 2 (left)
-    [270,  0.3, -0.2, 0], // Torus 3 (right)
-    [180,  0.0, -0.8, 0], // Torus 4 (bottom)
-  ];
-  for (const [rz, x, y, z] of parts) {
-    const t = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.15, 16, 16), mat);
-    t.rotation.z = rz * DEG;
-    t.position.set(x, y, z);
-    group.add(t);
-  }
-  group.scale.setScalar(1.5); // 1.5 units overall
-  return group;
-}
 
 // High Heel Shoe (Ladies Stiletto) — 3 components grouped together.
 export function buildHighHeelShoe() {
@@ -319,15 +352,7 @@ LANDMARKS.berlin = [
     add(Cyl(0.25, 0.25, 9, 8), grey(bad, 0xcfd6dd), 8, 9.5, 0);                          // fork handle
     for (let p = -1; p <= 1; p++) add(Cyl(0.12, 0.12, 2.4, 6), grey(bad, 0xcfd6dd), 8 + p * 0.45, 6.6, 0); // fork prongs
   },
-  // 5. Giant pretzel — twisted tan loop with salt, unmistakably a pretzel
-  ({ add, bad }) => {
-    const dough = grey(bad, 0xc98a3c);
-    add(Cyl(2, 2.4, 1, 12), grey(bad, 0x8a5a33), 0, 0.5, 0);          // base so it doesn't float
-    add(Tor(5, 1.3, Math.PI * 2), dough, 0, 7, 0);                    // outer loop
-    const t1 = add(Tor(2.2, 1.05, Math.PI * 1.15), dough, 0, 5.4, 0.3); t1.rotation.z = -0.7;  // crossed twist
-    const t2 = add(Tor(2.2, 1.05, Math.PI * 1.15), dough, 0, 5.4, -0.3); t2.rotation.z = Math.PI + 0.7;
-    for (let k = 0; k < 14; k++) { const a = k / 14 * Math.PI * 2; add(Sph(0.22, 6), grey(bad, 0xffffff), Math.cos(a) * 5, 7 + Math.sin(a) * 5, 1.4); } // salt
-  },
+  // (The giant pretzel landmark was replaced by the GLB model — see _addPretzelLandmark.)
 ];
 
 // ---- Berlin medium ----
@@ -357,12 +382,6 @@ MEDIUM.berlin = [
     add(Box(5.4, 1.6, 3.4), grey(bad, 0xfff2e0), 0, 1.4, 0);
     for (const [x, z] of [[-2.6, -1.8], [2.6, -1.8], [-2.6, 1.8], [2.6, 1.8]])
       add(Cyl(0.18, 0.18, 4.4, 8), grey(bad, 0xe8e8e8), x, 2.2, z);
-  },
-  // 4. Pretzel stand — cart with a big pretzel sign
-  ({ add, bad }) => {
-    add(Box(3, 2, 2), grey(bad, 0x8a5a33), 0, 1.4, 0);          // cart
-    for (const x of [-1.2, 1.2]) { const w = add(Cyl(0.5, 0.5, 0.3, 12), 0x222, x, 0.5, 1); w.rotation.z = Math.PI / 2; }
-    const sign = add(Tor(0.9, 0.3, Math.PI * 2), grey(bad, 0xc98a3c), 0, 4, 0); sign.rotation.x = 0.2;
   },
   // 5. Bicycle with front basket
   ({ add, bad }) => {
@@ -412,12 +431,6 @@ SMALL.berlin = [
     add(Cyl(0.32, 0.24, 0.9, 14), c, 0, 0.45, 0);
     add(Cyl(0.35, 0.35, 0.12, 14), 0xffffff, 0, 0.96, 0);
     add(Cyl(0.06, 0.06, 0.2, 8), 0xffffff, 0, 1.1, 0);
-  },
-  ({ g }) => { // 5 pretzel — built to the Shape Building Guide spec
-    const pretzel = buildPretzel();
-    const box = new THREE.Box3().setFromObject(pretzel);
-    pretzel.position.y -= box.min.y; // rest its lowest point on the ground
-    g.add(pretzel);
   },
   ({ add }) => { // 6 sausage bunch — linked sausages
     for (let k = 0; k < 4; k++) { const s = add(Cap(0.16, 0.5), 0xb5651d, -0.45 + k * 0.3, 0.5 + (k % 2) * 0.2, 0); s.rotation.z = 0.4; }
