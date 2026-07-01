@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { THEMES } from './config.js';
 import { createSakotis } from './sakotis.js';
+import { createStrawberry } from './strawberry.js';
 
 // ============================================================
 //  Environment — themed scenery scattered around the fixed track.
@@ -102,6 +103,20 @@ export class Environment {
       small.rotation.y = Math.sin(i * 2.1) * Math.PI;
       this._ensureClear(small, 2.5);
       this.group.add(small);
+    }
+
+    // ---- Berlin only: 100 strawberries scattered randomly across the field ----
+    if (themeKey === 'berlin') {
+      for (let i = 0; i < 100; i++) {
+        const straw = createStrawberry(THREE, { size: 3, seed: i + 1 }); // 3× the natural size
+        const t = Math.random();
+        const side = Math.random() < 0.5 ? -1 : 1;
+        const dist = 6 + Math.random() * 42;             // spread across the field band
+        straw.position.copy(this._outside(t, side, dist, 0)); // group origin (y=0) is the bottom tip → sits on ground
+        straw.rotation.y = Math.random() * Math.PI * 2;
+        this._ensureClear(straw, 2);                     // keep off the racing path
+        this.group.add(straw);
+      }
     }
 
     // ground & sky handled by Game via palette
