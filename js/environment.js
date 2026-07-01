@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { THEMES } from './config.js';
 import { createSakotis } from './sakotis.js';
 import { createStrawberry } from './strawberry.js';
+import { AMPELMANN } from './ampelmann.js';
 
 // ============================================================
 //  Environment — themed scenery scattered around the fixed track.
@@ -117,6 +118,13 @@ export class Environment {
         this._ensureClear(straw, 2);                     // keep off the racing path
         this.group.add(straw);
       }
+
+      // one big Ampelmann (green walking man) standing near the road
+      const amp = buildAmpelmann('walk', 10.64); // 5% smaller (was 11.2)
+      amp.position.copy(this._outside(0.3, 1, 6, 0));    // near the track on the field
+      amp.rotation.y = -Math.PI / 2;                     // face the racing line
+      this._ensureClear(amp, 3);                         // keep off the racing path
+      this.group.add(amp);
     }
 
     // ground & sky handled by Game via palette
@@ -258,6 +266,37 @@ export function buildHighHeelShoe() {
   group.add(toe);
 
   group.scale.setScalar(1.2); // 1.2 units overall height
+  return group;
+}
+
+// Ampelmann — extrude the traced SVG silhouette into an upright 3D figure.
+// The path 'd' is "M x,y x,y … Z": implicit line-tos, so it's just a polygon.
+// Fresh geometry/material per call (clear() disposes them on theme swap).
+function buildAmpelmann(which = 'walk', targetHeight = 16) {
+  const fig = AMPELMANN[which];
+  const shape = new THREE.Shape();
+  const tokens = fig.d.replace(/^M/, '').replace(/Z$/i, '').trim().split(/\s+/);
+  tokens.forEach((tok, i) => {
+    const [px, py] = tok.split(',').map(Number);
+    const x = px, y = fig.height - py;      // flip SVG's y-down into y-up so it stands upright
+    if (i === 0) shape.moveTo(x, y); else shape.lineTo(x, y);
+  });
+  shape.closePath();
+
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: 26, bevelEnabled: false });
+  geo.computeBoundingBox();
+  const bb = geo.boundingBox;
+  geo.translate(-(bb.min.x + bb.max.x) / 2, -bb.min.y, -(bb.min.z + bb.max.z) / 2); // center x/z, feet at y=0
+
+  const mesh = new THREE.Mesh(
+    geo,
+    new THREE.MeshStandardMaterial({
+      color: parseInt(fig.color.slice(1), 16), roughness: 0.55, metalness: 0.05, side: THREE.DoubleSide,
+    })
+  );
+  const group = new THREE.Group();
+  group.add(mesh);
+  group.scale.setScalar(targetHeight / fig.height); // feet stay at y=0 under uniform scale
   return group;
 }
 
