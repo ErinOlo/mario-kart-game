@@ -279,6 +279,9 @@ class Game {
       k.updateAI(dt, this.player, (from, to) => this.pickups.fireProjectile(from, to));
     }
 
+    // kart-to-kart bumping (after everyone has moved this frame)
+    this._resolveKartCollisions();
+
     // pickups & projectiles
     this.pickups.update(dt, this.camera);
     if (this.pickups.checkProjectileHits(this.player)) {
@@ -310,6 +313,51 @@ class Game {
     Audio.setEngine(Math.abs(this.player.speed) / KART.maxSpeed);
 
     if (raceOver) this._endRace();
+  }
+
+  // ---------- kart-to-kart collision ----------
+  // Circle-based separation: any two karts closer than 2×collideRadius are
+  // pushed apart and given an equal-and-opposite world-space knockback, so
+  // racers bump each other instead of overlapping. O(n²) over 4 karts.
+  _resolveKartCollisions() {
+    const R = KART.collideRadius;
+    const minDist = R * 2;
+    const karts = this.karts;
+    for (let i = 0; i < karts.length; i++) {
+      for (let j = i + 1; j < karts.length; j++) {
+        const a = karts[i], b = karts[j];
+        const dx = b.pos.x - a.pos.x;
+        const dz = b.pos.z - a.pos.z;
+        let d = Math.hypot(dx, dz);
+        if (d >= minDist) continue;               // not touching
+
+        // contact normal a→b (fall back to a fixed axis if perfectly stacked)
+        let nx, nz;
+        if (d < 1e-4) { nx = 1; nz = 0; d = 1e-4; } else { nx = dx / d; nz = dz / d; }
+
+        // 1. positional separation — split the overlap evenly
+        const half = (minDist - d) / 2;
+        a.pos.x -= nx * half; a.pos.z -= nz * half;
+        b.pos.x += nx * half; b.pos.z += nz * half;
+        a._syncMesh(); b._syncMesh();
+
+        // 2. knockback impulse — harder when the pair is moving faster
+        const closing = 0.5 + 0.5 * Math.min(1, (Math.abs(a.speed) + Math.abs(b.speed)) / KART.maxSpeed);
+        const imp = KART.collideImpulse * closing;
+        a.bump.x -= nx * imp; a.bump.z -= nz * imp;
+        b.bump.x += nx * imp; b.bump.z += nz * imp;
+
+        // 3. scrub a little forward speed on contact
+        a.speed *= KART.collideSpeedKeep;
+        b.speed *= KART.collideSpeedKeep;
+
+        // feedback when the player is involved
+        if (a.isPlayer || b.isPlayer) {
+          Audio.sfxBump?.();
+          if (closing > 0.75) this._spawnBurst(0xffffff, { count: 6, spread: 5, velY: 6, life: 0.4 });
+        }
+      }
+    }
   }
 
   _updateHUD() {

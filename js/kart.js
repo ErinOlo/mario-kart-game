@@ -17,6 +17,7 @@ export class Kart {
     this.heading = 0;          // radians, 0 = +Z
     this.speed = 0;            // signed forward speed
     this.lateralVel = 0;       // drift slide
+    this.bump = new THREE.Vector3();  // world-space knockback from kart-to-kart hits
 
     // race progress
     this.lap = 0;
@@ -58,6 +59,7 @@ export class Kart {
     this.pos.copy(pos);
     this.heading = heading;
     this.speed = 0; this.lateralVel = 0;
+    this.bump.set(0, 0, 0);
     this.lap = 0; this.progress = 0; this.finished = false; this.finishTime = null;
     this.boostTimer = 0; this.hitTimer = 0; this.invuln = false;
     this.drifting = false; this.driftCharge = 0;
@@ -174,6 +176,14 @@ export class Kart {
     const lat = new THREE.Vector3(Math.cos(this.heading), 0, -Math.sin(this.heading));
     this.pos.addScaledVector(dir, this.speed * dt);
     this.pos.addScaledVector(lat, this.lateralVel * dt);
+
+    // apply & decay knockback from kart-to-kart collisions (world space)
+    if (this.bump.lengthSq() > 1e-4) {
+      this.pos.addScaledVector(this.bump, dt);
+      this.bump.multiplyScalar(Math.pow(KART.collideDecay, dt));
+    } else {
+      this.bump.set(0, 0, 0);
+    }
 
     // keep on the road: heavy drag + nudge back when off
     const proj = this.track.project(this.pos);

@@ -139,6 +139,11 @@ class AudioEngine {
     this._tone(160, 0.18, 'square', 0.3);
     this._tone(110, 0.24, 'square', 0.3, 0.06);
   }
+  sfxBump() {             // low, short thud when karts bump
+    if (!this.ok) return;
+    this._tone(120, 0.08, 'square', 0.22);
+    this._tone(90, 0.1, 'square', 0.2, 0.03);
+  }
   sfxDriftBoost() { this._tone(440, 0.08, 'square', 0.25); this._tone(990, 0.16, 'square', 0.28, 0.06); }
   sfxCountdown(go = false) {
     if (go) { this._tone(880, 0.4, 'square', 0.35); }
