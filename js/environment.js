@@ -5,6 +5,7 @@ import { createStrawberry } from './strawberry.js';
 import { AMPELMANN } from './ampelmann.js';
 import { createTulip } from './tulip.js';
 import { createGediminasTower } from './gediminas-tower.js';
+import { createWhiteStork } from './white-stork.js';
 
 // ============================================================
 //  Environment — themed scenery scattered around the fixed track.
@@ -219,6 +220,15 @@ export class Environment {
           this.group.add(im[key]);
         }
       }
+    }
+
+    // ---- Vilnius only: one giant White Stork standing on the field, off the road ----
+    if (themeKey === 'vilnius') {
+      const stork = createWhiteStork(THREE, { size: 4.95, seed: 2 }); // 10% smaller (was 5.5)
+      stork.position.copy(this._outside(0.35, -1, 24, 0));           // other side of the road; y=0 is the feet → on ground
+      stork.rotation.y = 0;                                          // turn to face the track
+      this._ensureClear(stork, 4);                                   // keep off the racing path
+      this.group.add(stork);
     }
 
     // ---- Berlin only: Ampelmann + 100 strawberries scattered across the field ----
