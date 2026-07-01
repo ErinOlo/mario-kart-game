@@ -65,6 +65,12 @@ html, body {
   box-shadow: 0 0 12px rgba(46, 230, 160, 0.25);
   transition: transform 0.08s, border-color 0.12s, background 0.12s, color 0.12s, box-shadow 0.12s;
 }
+/* the start screen's long "VINTED KART" title spans the full panel width and
+   would collide with the corner toggles — reserve a header band so it clears
+   them. Buttons are positioned from the panel's padding edge, so extra
+   top padding pushes the title down without moving the buttons. */
+#start-screen .panel { padding-top: 104px; }
+
 .audio-toggle:hover { transform: translateY(-1px); }
 .audio-toggle:active { transform: translateY(1px); }
 .audio-toggle.muted {                              /* OFF = red + dimmed */
