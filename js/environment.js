@@ -5,6 +5,10 @@ import { createSakotis } from './sakotis.js';
 import { createStrawberry } from './strawberry.js';
 import { AMPELMANN } from './ampelmann.js';
 import { createTulip } from './tulip.js';
+import { createGediminasTower } from './gediminas-tower.js';
+import { createWhiteStork } from './white-stork.js';
+import { makeLake } from './SoupLakeScene.js';
+import { createVilniusTVTower } from './vilnius-tv-tower.js';
 
 // Themed GLB landmark models, replacing the old procedural pretzel/shoe/clothing geometry.
 const GLB_MODELS = {
@@ -54,6 +58,8 @@ export class Environment {
     this.group = new THREE.Group();
     scene.add(this.group);
     this.spinners = [];   // windmill sails, döner spits — rotated each frame
+    this.lakes = [];      // animated soup lakes — rippled each frame
+    this._elapsed = 0;    // accumulated time for lake ripple animation
 
     // Themed GLB landmark models (pretzel → Berlin; stiletto/tshirts/hanger/
     // closet → Vinted), loaded once and cloned per build.
@@ -209,12 +215,18 @@ export class Environment {
 
     // ---- big landmarks — far out so they loom as a skyline (depth layer 1) ----
     // pulled a little closer than before so the iconic shapes are clearly visible.
+    let hillPlaced = false;
     // (Some themes, e.g. Vinted, have no procedural landmarks and rely on their
     //  scattered GLB models instead — skip the ring when the pool is empty.)
     for (let i = 0; LANDMARKS[themeKey].length && i < 12; i++) {
       const t = i / 12 + 0.02;
       const side = i % 2 ? 1 : -1;
       const lm = this._landmark(themeKey, mode, m, i);
+      // the landmark array is cycled, so some entries recur — keep only one Hill of Crosses
+      if (lm.userData.isHillOfCrosses) {
+        if (hillPlaced) { lm.traverse((o) => { o.geometry?.dispose?.(); o.material?.dispose?.(); }); continue; }
+        hillPlaced = true;
+      }
       lm.position.copy(this._outside(t, side, 42 + (i % 3) * 22, 0));
       lm.rotation.y = side > 0 ? Math.PI : 0;     // face the track
       this._ensureClear(lm, 4);                   // big pieces: keep a wider berth
@@ -224,10 +236,23 @@ export class Environment {
 
     // ---- medium features — mid-field (depth layer 2), both sides, dense ----
     const medCount = 60;
+    let tvPlaced = false;
     for (let i = 0; i < medCount; i++) {
       const t = (i / medCount + 0.006) % 1;
       const side = i % 2 ? 1 : -1;
       const med = this._medium(themeKey, mode, m, i);
+      // the medium array is cycled many times — keep only one Vilnius TV Tower,
+      // and place it at a fixed prominent spot right beside the track (not the
+      // loop's default position) so a driver clearly sees it.
+      if (med.userData.isVilniusTV) {
+        if (tvPlaced) { med.traverse((o) => { o.geometry?.dispose?.(); o.material?.dispose?.(); }); continue; }
+        tvPlaced = true;
+        med.position.copy(this._outside(0.12, -1, 18, 0)); // trackside on the long opening straight
+        med.rotation.y = 0;                                // face the racing line
+        this._ensureClear(med, 3);                         // keep off the road
+        this.group.add(med);
+        continue;
+      }
       med.position.copy(this._outside(t, side, 17 + (i % 8) * 4.2, 0));
       med.rotation.y = i * 1.3;
       this._ensureClear(med, 3);
@@ -362,6 +387,66 @@ export class Environment {
       }
     }
 
+    // ---- Vilnius only: keep the Šakotis landmarks from overlapping other objects ----
+    // The landmark loop only clears the track, so the (large) Šakotis can sit on top of
+    // other landmarks/features. Nudge each flagged Šakotis out of any object it intersects
+    // — and off the track — iteratively. Runs after landmarks/medium/small are all placed.
+    if (themeKey === 'vilnius') {
+      const _b = new THREE.Box3(), _c = new THREE.Vector3(), _sz = new THREE.Vector3();
+      const foot = (o) => { _b.setFromObject(o); _b.getCenter(_c); _b.getSize(_sz); return { x: _c.x, z: _c.z, r: 0.5 * Math.hypot(_sz.x, _sz.z) }; };
+      const sakotis = this.group.children.filter((o) => o.userData?.isSakotis);
+      const obstacles = this.group.children.filter((o) => !o.userData?.isSakotis).map(foot);
+      const GAP = 2;
+      for (const cake of sakotis) {
+        for (let iter = 0; iter < 40; iter++) {
+          this._ensureClear(cake, 4);                    // keep off the racing path first
+          const f = foot(cake);
+          let worstOv = 0, wdx = 0, wdz = 0, wd = 1;
+          for (const o of obstacles) {
+            const dx = f.x - o.x, dz = f.z - o.z, d = Math.hypot(dx, dz);
+            const ov = (f.r + o.r + GAP) - d;
+            if (ov > worstOv) { worstOv = ov; wdx = dx; wdz = dz; wd = d || 1; }
+          }
+          if (worstOv <= 0) break;                       // clear of every object
+          cake.position.x += (wdx / wd) * (worstOv + 0.5); // push straight away from worst overlap
+          cake.position.z += (wdz / wd) * (worstOv + 0.5);
+        }
+        obstacles.push(foot(cake));                      // later Šakotis also avoids this one
+      }
+    }
+
+    // ---- Vilnius only: one giant White Stork standing on the field, off the road ----
+    if (themeKey === 'vilnius') {
+      const stork = createWhiteStork(THREE, { size: 4.95, seed: 2 }); // 10% smaller (was 5.5)
+      stork.position.copy(this._outside(0.35, -1, 24, 0));           // other side of the road; y=0 is the feet → on ground
+      stork.rotation.y = 0;                                          // turn to face the track
+      this._ensureClear(stork, 4);                                   // keep off the racing path
+      this.group.add(stork);
+
+      // 2 Šaltibarščiai lakes — just the rippling soup-blob from the SoupLake model
+      // (its full landscape ships a sky dome + ground that would clash with ours).
+      //
+      // PERF: both lakes are the SAME deterministic blob (fixed seeds), differing only
+      // by transform. So build ONE (one 512² swirl texture, one geometry) and share its
+      // geometry+material across both meshes; the ripple animates that single geometry
+      // once per frame instead of recomputing normals + re-uploading buffers twice.
+      const lakeSpots = [
+        { t: 0.18, side:  1, dist: 60, scale: 0.5,  rot: 0.3 },
+        { t: 0.68, side: -1, dist: 64, scale: 0.55, rot: 2.1 },
+      ];
+      const lakeProto = makeLake();                                  // built once (geometry + texture)
+      lakeSpots.forEach((sp, i) => {
+        const lake = i === 0 ? lakeProto
+                             : new THREE.Mesh(lakeProto.geometry, lakeProto.material); // share buffers
+        lake.scale.setScalar(sp.scale);
+        const p = this._outside(sp.t, sp.side, sp.dist, 0.15);       // flat pool just above ground
+        lake.position.set(p.x, 0.15, p.z);
+        lake.rotation.y = sp.rot;
+        this.group.add(lake);
+      });
+      this.lakes.push(lakeProto);                                    // animate the shared geometry once/frame
+    }
+
     // ---- Berlin only: Ampelmann + 100 strawberries scattered across the field ----
     if (themeKey === 'berlin') {
       // one big Ampelmann (green walking man) standing near the road — placed first
@@ -413,6 +498,10 @@ export class Environment {
   // spin windmill sails / döner spits — called every frame by the game loop
   update(dt) {
     for (const s of this.spinners) s.rotation[s.userData.spinAxis] += s.userData.spinSpeed * dt;
+    if (this.lakes.length) {
+      this._elapsed += dt;
+      for (const lk of this.lakes) lk.userData.animate(this._elapsed);
+    }
   }
 
   // ---- depth band dispatch ------------------------------------------------
@@ -451,6 +540,7 @@ export class Environment {
 
   clear() {
     this.spinners = [];
+    this.lakes = [];
     while (this.group.children.length) {
       const c = this.group.children.pop();
       c.traverse?.((o) => { o.geometry?.dispose?.(); o.material?.dispose?.(); });
@@ -892,14 +982,12 @@ SMALL.amsterdam = [
 //  VILNIUS
 // ============================================================
 LANDMARKS.vilnius = [
-  // 1. Gediminas Tower — red-brick tower on a green hill, flag on top
-  ({ add, bad }) => {
-    add(Cone(10, 8, 18), grey(bad, 0x6f9a4a), 0, 4, 0);         // hill
-    add(Cyl(3.5, 4, 13, 8), grey(bad, 0xb5503a), 0, 14.5, 0);   // octagonal tower
-    for (let c = 0; c < 8; c++) { const a = c / 8 * Math.PI * 2; add(Box(0.8, 1.2, 0.8), grey(bad, 0x8a3a2a), Math.cos(a) * 3.7, 21.4, Math.sin(a) * 3.7); } // crenellations
-    add(Cyl(0.08, 0.08, 3, 6), 0x555, 0, 23.5, 0);              // flagpole
-    add(Box(1.4, 0.9, 0.05), grey(bad, 0xfdb913), 0.7, 24.4, 0);
-    add(Box(1.4, 0.9, 0.05), grey(bad, 0x006a44), 0.7, 23.5, 0);
+  // 1. Gediminas Tower — updated procedural model, seated on the green hill
+  ({ g, add, bad }) => {
+    add(Cone(10, 8, 18), grey(bad, 0x6f9a4a), 0, 4, 0);         // green Gediminas hill (kept)
+    const tower = createGediminasTower(THREE, { size: 2.53, seed: 3 }); // 15% bigger (was 2.2)
+    tower.position.y = 2;                                       // seat the plinth into the hilltop
+    g.add(tower);
   },
   // 2. Vilnius Cathedral — white neoclassical block + freestanding belfry
   ({ add, bad, accent }) => {
@@ -915,7 +1003,9 @@ LANDMARKS.vilnius = [
     add(Cyl(0.1, 0.1, 1.4, 6), grey(bad, 0xd4af37), 8, 24, 0);
   },
   // 3. Hill of Crosses — distinctive mound bristling with crosses
-  ({ add, bad }) => {
+  ({ g, add, bad }) => {
+    g.scale.setScalar(2.5); // 50% smaller than the previous 5× (position unchanged)
+    g.userData.isHillOfCrosses = true; // only one is kept (see build() landmark loop)
     add(Cone(9, 5, 16), grey(bad, 0x7a6a4a), 0, 2.5, 0);        // mound
     let n = 0;
     for (let ring = 0; ring < 3; ring++) {
@@ -948,19 +1038,6 @@ LANDMARKS.vilnius = [
     }
     add(Cone(0.6, 2.2, 8), cake, 0, 3 + levels * 1.9, 0);               // top point
   },
-  // 5. Sūrelis — big pale Lithuanian curd cheese wheels with chocolate glaze
-  ({ add, bad }) => {
-    const curd = grey(bad, 0xf5e9cf), glaze = grey(bad, 0x5a3b22);
-    const radii = [5, 4.2, 3.4];
-    let y = 0;
-    for (let k = 0; k < radii.length; k++) {
-      const h = 3.2 - k * 0.3;
-      add(Cyl(radii[k], radii[k], h, 24), curd, 0, y + h / 2, 0);
-      y += h;
-    }
-    add(Cyl(3.5, 3.5, 0.7, 24), glaze, 0, y + 0.2, 0);                  // glaze cap
-    for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2; add(Cap(0.3, 1.2), glaze, Math.cos(a) * 3.2, y - 0.4, Math.sin(a) * 3.2); } // drips
-  },
   // Šakotis (Lithuanian tree cake) — huge procedural roadside decoration
   ({ g }) => {
     const cake = createSakotis(THREE, { height: 6.5, seed: 7 });
@@ -968,6 +1045,7 @@ LANDMARKS.vilnius = [
     const box = new THREE.Box3().setFromObject(cake);
     cake.position.y -= box.min.y;                       // rest the board flat on the ground
     g.add(cake);
+    g.userData.isSakotis = true;                        // flagged for the de-overlap pass in build()
   },
   // Second Šakotis — 25% smaller than the first, placed elsewhere along the road
   ({ g }) => {
@@ -976,6 +1054,7 @@ LANDMARKS.vilnius = [
     const box = new THREE.Box3().setFromObject(cake);
     cake.position.y -= box.min.y;                       // rest the board flat on the ground
     g.add(cake);
+    g.userData.isSakotis = true;                        // flagged for the de-overlap pass in build()
   },
 ];
 
@@ -1007,12 +1086,12 @@ MEDIUM.vilnius = [
     add(Dome(4, 18), grey(bad, accent), 0, 3, 0);               // dome roof
     add(Box(0.1, 1.4, 1.4), grey(bad, 0xffffff), 4, 3, 0);      // backboard hint
   },
-  // 4 Vilnius TV Tower — tall slim concrete tower w/ flared base + ring
-  ({ add, bad }) => {
-    add(Cone(2.6, 4, 12), grey(bad, 0xdfe4e8), 0, 2, 0);        // flared base
-    add(Cyl(0.5, 0.9, 12, 12), grey(bad, 0xeef2f5), 0, 9, 0);   // shaft
-    add(Cyl(1.6, 1.6, 1.4, 16), grey(bad, 0xc0c8cf), 0, 13, 0); // observation ring
-    add(Cyl(0.12, 0.2, 5, 8), grey(bad, 0xff3b2e), 0, 16, 0);   // mast
+  // 4 Vilnius TV Tower — updated procedural model (kept unique; see MEDIUM loop dedup).
+  // size 0.77 ≈ 23.4u tall — 30% bigger than the old ~18u tower it replaces.
+  ({ g }) => {
+    const tower = createVilniusTVTower(THREE, { size: 0.77, seed: 1 });
+    g.add(tower);
+    g.userData.isVilniusTV = true;
   },
   // 5 Mindaugas Bridge — modern span with cables
   ({ add, bad }) => {
