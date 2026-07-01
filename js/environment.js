@@ -124,6 +124,28 @@ export class Environment {
         if (p.z < minZ) minZ = p.z; if (p.z > maxZ) maxZ = p.z;
       }
 
+      // 0) place 4 extra Dutch canal houses (landmark #3) at new spots on the field,
+      //    kept off the road, recording each footprint so tulips beneath are removed.
+      const houseSpots = [
+        { t: 0.15, side:  1, dist: 22 },
+        { t: 0.40, side: -1, dist: 26 },
+        { t: 0.66, side:  1, dist: 30 },
+        { t: 0.88, side: -1, dist: 24 },
+      ];
+      const houseFP = [];
+      const _hb = new THREE.Box3(), _hc = new THREE.Vector3(), _hs = new THREE.Vector3();
+      for (const sp of houseSpots) {
+        const ctx = this._ctx('amsterdam', mode, m, 3);
+        LANDMARKS.amsterdam[3](ctx);                   // the Dutch canal houses builder
+        const house = ctx.g;
+        house.position.copy(this._outside(sp.t, sp.side, sp.dist, 0));
+        house.rotation.y = sp.side > 0 ? Math.PI : 0;  // face the track
+        this._ensureClear(house, 4);                   // keep off the road
+        this.group.add(house);
+        _hb.setFromObject(house); _hb.getCenter(_hc); _hb.getSize(_hs);
+        houseFP.push({ x: _hc.x, z: _hc.z, r: 0.5 * Math.hypot(_hs.x, _hs.z) + 1 });
+      }
+
       // 1) collect the clear grid cells (with a per-tulip facing)
       const placements = [];
       for (let x = minX - MARGIN; x <= maxX + MARGIN; x += SPACING) {
@@ -133,7 +155,15 @@ export class Environment {
             const dx = x - p.x, dz = z - p.z, d = dx * dx + dz * dz;
             if (d < dmin2) dmin2 = d;
           }
-          if (dmin2 >= CLEAR2) placements.push({ x, z, ry: Math.random() * Math.PI * 2 });
+          if (dmin2 < CLEAR2) continue;                // too close to the track — leave open
+          // skip cells sitting under one of the newly placed canal houses
+          let underHouse = false;
+          for (const h of houseFP) {
+            const dx = x - h.x, dz = z - h.z;
+            if (dx * dx + dz * dz < h.r * h.r) { underHouse = true; break; }
+          }
+          if (underHouse) continue;
+          placements.push({ x, z, ry: Math.random() * Math.PI * 2 });
         }
       }
 
@@ -612,6 +642,7 @@ SMALL.berlin = [
 LANDMARKS.amsterdam = [
   // 1. Windmill (Kinderdijk) — massive, rotating sails visible
   ({ g, add, m, bad, spinners }) => {
+    g.scale.setScalar(1.1); // 10% bigger (position unchanged)
     add(Cyl(3, 4.6, 16, 14), grey(bad, 0x9c6b3f), 0, 8, 0);     // tapered tower
     add(Cone(5, 5, 14), grey(bad, 0x5a3a26), 0, 18.5, 0);       // cap
     add(Tor(4.7, 0.4, Math.PI * 2), grey(bad, 0x6b4a30), 0, 13, 0); // balcony ring
@@ -642,7 +673,8 @@ LANDMARKS.amsterdam = [
     const hook = add(Box(1.4, 0.3, 0.3), trim, 0, 17.6, 3.4);   // gable hoisting beam
   },
   // 3. Canal barge — long low boat floating on canal water
-  ({ add, bad, accent }) => {
+  ({ g, add, bad, accent }) => {
+    g.scale.setScalar(2); // 100% bigger (position unchanged)
     water(add, 34, 14);                                         // the canal itself
     add(Box(22, 2.4, 5), grey(bad, 0x2e5d3a), 0, 1.4, 0);       // hull
     add(Box(20, 0.6, 4.4), grey(bad, 0x5a3a26), 0, 2.7, 0);     // deck
@@ -673,7 +705,8 @@ LANDMARKS.amsterdam = [
     }
   },
   // 5. Huge cheese wedge — yellow, holes, dark rind
-  ({ add, bad }) => {
+  ({ g, add, bad }) => {
+    g.scale.setScalar(2.5); // 150% bigger (position unchanged)
     const yellow = grey(bad, 0xf2c200);
     const shape = new THREE.Shape();
     shape.moveTo(0, 0); shape.lineTo(11, 0); shape.lineTo(11, 6.5); shape.closePath();
