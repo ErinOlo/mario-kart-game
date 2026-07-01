@@ -20,7 +20,10 @@
       "Bash(git push *)",
       "Bash(curl -s http://localhost:3000/styles.css)",
       "Bash(git commit -q -m 'Add persisted mute toggles on results screen *)",
-      "Bash(git merge *)"
+      "Bash(git merge *)",
+      "Bash(node --check js/ui.js)",
+      "Bash(node --check js/audio.js)",
+      "Bash(git commit -q -m 'Show mute buttons on start screen too, kept in sync *)"
     ]
   }
 }

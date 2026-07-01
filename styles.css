@@ -39,8 +39,8 @@ html, body {
   box-shadow: 0 0 60px rgba(255, 46, 136, 0.35), inset 0 0 30px rgba(0, 229, 255, 0.08);
 }
 
-/* mute controls, pinned to the results modal's top-right corner */
-#results-audio {
+/* mute controls, pinned to the start/results modal's top-right corner */
+.panel-audio {
   position: absolute;
   top: 14px;
   right: 14px;
