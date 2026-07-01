@@ -69,9 +69,87 @@ export class Pickups {
         break;
       }
       case 'mode': {
-        // green (good) or red (bad) PORTAL — big colored hollow ring you can see through
-        const c = def.mode === 'good' ? 0x33ff88 : 0xff2233;
-        const R = 3.4; // ~2x the old portal — bigger & more visible
+        if (def.mode === 'bad') {
+          // organic HORROR PORTAL — a fleshy rift torn open in space
+          // 1. Core rift: vertical pointed-oval (almond/eye) via bezier curves
+          const rift = new THREE.Shape();
+          rift.moveTo(0, 2.6);
+          rift.bezierCurveTo(1.6, 1.4, 1.6, -1.4, 0, -2.6);
+          rift.bezierCurveTo(-1.6, -1.4, -1.6, 1.4, 0, 2.6);
+          const riftGeo = new THREE.ExtrudeGeometry(rift, { depth: 0.3, bevelEnabled: false });
+          const riftMesh = new THREE.Mesh(riftGeo, m(0x1a0000, { emissiveIntensity: 0.7 }));
+          riftMesh.position.z = -0.15;
+          g.add(riftMesh);
+
+          // 2. Membrane filling the rift + vertical "vein" details
+          const membrane = new THREE.Mesh(
+            new THREE.PlaneGeometry(2.4, 5),
+            new THREE.MeshBasicMaterial({ color: 0x330000, transparent: true, opacity: 0.6, side: THREE.DoubleSide, depthWrite: false })
+          );
+          membrane.position.z = 0.05;
+          g.add(membrane);
+          for (let i = 0; i < 6; i++) {
+            const t = (i / 5 - 0.5);          // -0.5 .. 0.5
+            const h = 4.4 * (1 - Math.abs(t) * 1.3); // taller in the middle of the eye
+            if (h <= 0.2) continue;
+            const vein = new THREE.Mesh(
+              new THREE.BoxGeometry(0.05, h, 0.05),
+              m(0x4d0000, { emissiveIntensity: 0.5 })
+            );
+            vein.position.set(t * 2.0, 0, 0.1);
+            g.add(vein);
+          }
+
+          // 3. Tendrils: 8 thick curved tentacle arms radiating from the rift edge
+          const tendrilColors = [0x1a0a00, 0x120800, 0x0a0400, 0x000000];
+          for (let i = 0; i < 8; i++) {
+            const a = (i / 8) * Math.PI * 2;
+            const sx = Math.cos(a) * 1.2, sy = Math.sin(a) * 2.4; // start on the almond edge
+            const dirx = Math.cos(a), diry = Math.sin(a);
+            const curl = (i % 2 === 0 ? 1 : -1) * (0.8 + (i % 3) * 0.5);
+            const pts = [
+              new THREE.Vector3(sx, sy, 0),
+              new THREE.Vector3(sx + dirx * 1.6 - diry * curl * 0.4, sy + diry * 1.6 + dirx * curl * 0.4, 0.3),
+              new THREE.Vector3(sx + dirx * 3.0 + diry * curl, sy + diry * 3.0 - dirx * curl, -0.2),
+              new THREE.Vector3(sx + dirx * 4.2 - diry * curl * 1.4, sy + diry * 4.2 + dirx * curl * 1.4, 0.4),
+              new THREE.Vector3(sx + dirx * 5.0 + diry * curl * 2.0, sy + diry * 5.0 - dirx * curl * 2.0, -0.3),
+            ];
+            const curve = new THREE.CatmullRomCurve3(pts);
+            const radius = 0.15 + (i % 4) * (0.20 / 3); // 0.15 .. 0.35
+            const tube = new THREE.Mesh(
+              new THREE.TubeGeometry(curve, 24, radius, 8, false),
+              m(tendrilColors[i % tendrilColors.length], { emissiveIntensity: 0.25 })
+            );
+            g.add(tube);
+          }
+
+          // 4. Glow layers — coloured lights + emissive rings
+          const pink = new THREE.PointLight(0xff00cc, 2.5, 30);
+          pink.position.set(0, 0, 0.5);
+          g.add(pink);
+          const orange = new THREE.PointLight(0xff6600, 1.8, 30);
+          orange.position.set(0.6, -0.6, 0.5);
+          g.add(orange);
+          const outerRing = new THREE.Mesh(
+            new THREE.TorusGeometry(3.4, 0.25, 16, 40),
+            m(0xff1493, { emissiveIntensity: 1.2 })
+          );
+          outerRing.scale.set(0.85, 1.3, 1);
+          g.add(outerRing);
+          const innerRing = new THREE.Mesh(
+            new THREE.TorusGeometry(2.4, 0.2, 16, 36),
+            m(0xff6600, { emissiveIntensity: 1.5 })
+          );
+          innerRing.scale.set(0.75, 1.2, 1);
+          g.add(innerRing);
+
+          // 5. behaviour
+          g.userData.icon = '🌧'; g.userData.spin = 0.3; g.userData.billboard = true;
+          break;
+        }
+        // green (good) PORTAL — big colored hollow ring you can see through
+        const c = 0x33ff88;
+        const R = 8.0; // spans the full 16-unit road width — edge to edge
         const ring = new THREE.Mesh(new THREE.TorusGeometry(R, 0.4, 16, 36), m(c, { emissiveIntensity: 0.95 }));
         g.add(ring);
         // faint transparent membrane so the interior is hollow / see-through
@@ -80,7 +158,7 @@ export class Pickups {
           new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false })
         );
         g.add(inner);
-        g.userData.icon = def.mode === 'good' ? '🌞' : '🌧'; g.userData.spin = 1.0; g.userData.billboard = true;
+        g.userData.icon = '🌞'; g.userData.spin = 1.0; g.userData.billboard = true;
         break;
       }
       case 'slowmo': {
