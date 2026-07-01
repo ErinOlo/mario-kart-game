@@ -43,6 +43,7 @@ class Game {
     this.pickups = new Pickups(this.scene, this.track);
     this.karts = RACERS.map((r, i) => new Kart(this.scene, this.track, r, i));
     this.player = this.karts.find((k) => k.isPlayer);
+    this.aiCount = this.karts.filter((k) => !k.isPlayer).length;
 
     this.input = new Input();
     this.ui = new UI();
@@ -93,6 +94,7 @@ class Game {
     this.mode = 'good';
     this.timeLeft = RACE.durationSec;
     this.slowMoTimer = 0;
+    this.parkedCount = 0;   // roadside spectator slots handed out this race
     this._clearParticles();
     this.pickups.resetAll();
     this.karts.forEach((k) => k.reset());
@@ -320,9 +322,13 @@ class Game {
     // race clock
     this.timeLeft -= dt;
 
-    // stamp a finish time for any kart that just completed the required laps
+    // stamp a finish time for any kart that just completed the required laps,
+    // and send finished AIs off the track to a roadside spectator slot.
     for (const k of this.karts) {
-      if (k.finished && k.finishTime == null) k.finishTime = RACE.durationSec - this.timeLeft;
+      if (k.finished && k.finishTime == null) {
+        k.finishTime = RACE.durationSec - this.timeLeft;
+        if (!k.isPlayer) k.parkAsSpectator(this.parkedCount++, this.aiCount);
+      }
     }
 
     // race ends when the PLAYER finishes (early finish) or the clock runs out.
@@ -350,6 +356,7 @@ class Game {
     for (let i = 0; i < karts.length; i++) {
       for (let j = i + 1; j < karts.length; j++) {
         const a = karts[i], b = karts[j];
+        if (a.finished || b.finished) continue;   // parked spectators don't bump
         const dx = b.pos.x - a.pos.x;
         const dz = b.pos.z - a.pos.z;
         let d = Math.hypot(dx, dz);

@@ -26,6 +26,11 @@ export class Kart {
     this.finished = false;
     this.finishTime = null;
 
+    // once finished, AI racers pull off to a roadside slot and watch the race
+    this.parking = false;
+    this.parkPos = null;
+    this.parkHeading = 0;
+
     // status effects
     this.boostTimer = 0;
     this.hitTimer = 0;
@@ -63,6 +68,8 @@ export class Kart {
     this.speed = 0; this.lateralVel = 0;
     this.bump.set(0, 0, 0);
     this.lap = 0; this.progress = 0; this.finished = false; this.finishTime = null;
+    this.parking = false; this.parkPos = null; this.parkHeading = 0;
+    this.mesh.rotation.z = 0;
     this.boostTimer = 0; this.hitTimer = 0; this.slowFactor = 1; this.shootCooldown = 0; this.invuln = false;
     this.drifting = false; this.driftCharge = 0;
     this.lastT = this.track.project(pos).t;
@@ -135,7 +142,13 @@ export class Kart {
 
   // ---------- AI UPDATE ----------
   updateAI(dt, playerKart, fireProjectile) {
-    if (this.finished) { this._coast(dt); this._updateProgress(); return; }
+    if (this.finished) {
+      // finished AIs pull off to their roadside slot; before a slot is
+      // assigned (same frame they cross) they just coast to a halt.
+      if (this.parking) this._parkOffTrack(dt);
+      else { this._coast(dt); this._updateProgress(); }
+      return;
+    }
 
     // look ahead on the track and steer toward it
     const aheadT = (this.lastT + 0.018) % 1;
@@ -172,6 +185,42 @@ export class Kart {
   _coast(dt) {
     this.speed *= Math.pow(0.85, dt * 4);
     this._integrate(dt);
+  }
+
+  // Reserve a stationary spectator slot off to the side of the finish line,
+  // facing back toward the track. `slot`/`total` lay the finishers out in a
+  // tidy row so they don't stack on top of each other.
+  parkAsSpectator(slot, total) {
+    const t0 = 0;                                   // the start/finish line
+    const base = this.track.pointAt(t0);
+    const lat = this.track.lateralAt(t0);           // perpendicular to the track
+    const tan = this.track.tangentAt(t0);           // along the track
+    const side = 1;                                 // pull over to one side
+    const offset = this.track.width / 2 + 5;        // clear of the racing surface
+    const spacing = 6.5;                            // gap between parked racers
+    const along = (slot - (total - 1) / 2) * spacing;
+    this.parkPos = base.clone()
+      .addScaledVector(lat, side * offset)
+      .addScaledVector(tan, along)
+      .setY(0);
+    // face inward, back toward the track, so they watch the race come in
+    const face = lat.clone().multiplyScalar(-side);
+    this.parkHeading = Math.atan2(face.x, face.z);
+    this.parking = true;
+  }
+
+  // Glide to the reserved slot, rotate to face the track, and sit upright.
+  _parkOffTrack(dt) {
+    this.speed = 0; this.lateralVel = 0; this.bump.set(0, 0, 0);
+    this.pos.lerp(this.parkPos, Math.min(1, dt * 2.5));
+    this.pos.y = 0;
+    let diff = this.parkHeading - this.heading;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    this.heading += diff * Math.min(1, dt * 3);
+    this._syncMesh();
+    // undo any leftover drift roll so they stand level
+    this.mesh.rotation.z = THREE.MathUtils.lerp(this.mesh.rotation.z, 0, Math.min(1, dt * 6));
   }
 
   _integrate(dt) {
