@@ -75,6 +75,15 @@ class Game {
     this.ui.onStart(() => this._startRace(this.ui.selectedTheme));
     this.ui.onAgain(() => this._startRace(this.theme));
     this.ui.onChangeTheme(() => { this.state = 'menu'; this.ui.showStart(); });
+
+    // mute controls (results modal) — reflect saved prefs, then toggle Audio on click
+    this.ui.setAudioState(Audio.musicMuted, Audio.sfxMuted);
+    this.ui.onToggleMusic(() => this.ui.setMusicButton(Audio.toggleMusic()));
+    this.ui.onToggleSfx(() => {
+      const muted = Audio.toggleSfx();
+      this.ui.setSfxButton(muted);
+      if (!muted) Audio.sfxBoost();   // brief blip so you hear SFX come back on
+    });
   }
 
   // ---------- race lifecycle ----------
@@ -490,5 +499,6 @@ class Game {
 }
 
 const game = new Game();
-// debug/testing handle
+// debug/testing handles
 window.CollageKart = game;
+window.CKAudio = Audio;

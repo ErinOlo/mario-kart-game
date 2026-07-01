@@ -29,6 +29,7 @@ html, body {
 }
 
 .panel {
+  position: relative;                 /* containing block for the top-right audio toggles */
   background: var(--panel);
   border: 2px solid rgba(255, 255, 255, 0.12);
   border-radius: 22px;
@@ -36,6 +37,42 @@ html, body {
   width: min(560px, 92vw);
   text-align: center;
   box-shadow: 0 0 60px rgba(255, 46, 136, 0.35), inset 0 0 30px rgba(0, 229, 255, 0.08);
+}
+
+/* mute controls, pinned to the results modal's top-right corner */
+#results-audio {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 5;
+}
+.audio-toggle {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #eafff2;
+  cursor: pointer;
+  padding: 7px 12px;
+  min-width: 108px;
+  text-align: left;
+  border-radius: 10px;
+  border: 2px solid #2ee6a0;                       /* ON = green */
+  background: rgba(46, 230, 160, 0.18);
+  box-shadow: 0 0 12px rgba(46, 230, 160, 0.25);
+  transition: transform 0.08s, border-color 0.12s, background 0.12s, color 0.12s, box-shadow 0.12s;
+}
+.audio-toggle:hover { transform: translateY(-1px); }
+.audio-toggle:active { transform: translateY(1px); }
+.audio-toggle.muted {                              /* OFF = red + dimmed */
+  color: #ffd8e0;
+  border-color: #ff5c7a;
+  background: rgba(255, 92, 122, 0.16);
+  box-shadow: none;
+  opacity: 0.9;
 }
 
 h1 {

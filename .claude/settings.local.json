@@ -12,7 +12,15 @@
       "Bash(node --input-type=module --check)",
       "Bash(pkill -f \"serve . -l 4321\")",
       "Bash(pkill -f \"serve@\")",
-      "Bash(git -C /Users/erin.oloughlin/Desktop/mario-kart-game status --short)"
+      "Bash(git -C /Users/erin.oloughlin/Desktop/mario-kart-game status --short)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(git checkout *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(curl -s http://localhost:3000/styles.css)",
+      "Bash(git commit -q -m 'Add persisted mute toggles on results screen *)",
+      "Bash(git merge *)"
     ]
   }
 }

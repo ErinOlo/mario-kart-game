@@ -16,6 +16,18 @@ class AudioEngine {
     this.step = 0;
     this.mode = 'good';      // 'good' | 'bad' | 'slowmo'
     this.tempoMs = 250;
+
+    // mute preferences (persisted). Loaded before init so init can apply them.
+    this.sfxGain = null;                             // all SFX + engine route through here
+    this.musicMuted = this._loadMute('ck_muteMusic');
+    this.sfxMuted = this._loadMute('ck_muteSfx');
+  }
+
+  _loadMute(key) {
+    try { return localStorage.getItem(key) === 'true'; } catch (e) { return false; }
+  }
+  _saveMute(key, val) {
+    try { localStorage.setItem(key, val ? 'true' : 'false'); } catch (e) {}
   }
 
   init() {
@@ -31,6 +43,12 @@ class AudioEngine {
       this.musicGain = this.ctx.createGain();
       this.musicGain.gain.value = 0.0;
       this.musicGain.connect(this.master);
+
+      // SFX bus (one-shot sounds + engine hum) — muting this silences all SFX
+      // while leaving the chiptune music (its own context) untouched.
+      this.sfxGain = this.ctx.createGain();
+      this.sfxGain.gain.value = this.sfxMuted ? 0 : 1;
+      this.sfxGain.connect(this.master);
 
       this.ok = true;
     } catch (e) {
@@ -54,7 +72,7 @@ class AudioEngine {
     g.gain.exponentialRampToValueAtTime(vol, t + 0.01);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     osc.connect(g);
-    g.connect(target || this.master);
+    g.connect(target || this.sfxGain);
     osc.start(t);
     osc.stop(t + dur + 0.02);
   }
@@ -72,7 +90,7 @@ class AudioEngine {
     lp.frequency.value = 600;
     this.engineOsc.connect(lp);
     lp.connect(this.engineGain);
-    this.engineGain.connect(this.master);
+    this.engineGain.connect(this.sfxGain);
     this.engineOsc.start();
   }
   setEngine(speed01) {
@@ -90,8 +108,8 @@ class AudioEngine {
   // ============ MUSIC (chiptune player) ============
   startMusic() {
     if (this.musicTimer) return;   // already playing
-    this.musicTimer = true;        // sentinel so we don't double-start
-    if (window.Chiptune) {
+    this.musicTimer = true;        // sentinel: a music session is active
+    if (!this.musicMuted && window.Chiptune) {
       window.Chiptune.play({ loop: true, volume: 0.7 });
     }
   }
@@ -104,6 +122,25 @@ class AudioEngine {
     this.mode = mode;   // retained for future use; chiptune plays the fixed melody
   }
   _musicStep() { /* replaced by chiptune player */ }
+
+  // ============ MUTE TOGGLES (persisted to localStorage) ============
+  setMusicMuted(muted) {
+    this.musicMuted = muted;
+    this._saveMute('ck_muteMusic', muted);
+    if (muted) {
+      if (window.Chiptune) window.Chiptune.stop();
+    } else if (this.musicTimer && window.Chiptune) {
+      window.Chiptune.play({ loop: true, volume: 0.7 });  // resume if a session is active
+    }
+  }
+  toggleMusic() { this.setMusicMuted(!this.musicMuted); return this.musicMuted; }
+
+  setSfxMuted(muted) {
+    this.sfxMuted = muted;
+    this._saveMute('ck_muteSfx', muted);
+    if (this.sfxGain) this.sfxGain.gain.value = muted ? 0 : 1;
+  }
+  toggleSfx() { this.setSfxMuted(!this.sfxMuted); return this.sfxMuted; }
 
   // ============ SOUND EFFECTS ============
   sfxBoost() {            // bright rising chime
@@ -123,7 +160,7 @@ class AudioEngine {
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(0.25, t + 0.05);
     g.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
-    osc.connect(g); g.connect(this.master);
+    osc.connect(g); g.connect(this.sfxGain);
     osc.start(t); osc.stop(t + 0.55);
   }
   sfxModeGood() { this._tone(523, 0.12, 'sine', 0.3); this._tone(784, 0.2, 'sine', 0.3, 0.1); }

@@ -32,6 +32,8 @@ export class UI {
       cumulativeList: document.getElementById('cumulative-list'),
       againBtn: document.getElementById('again-btn'),
       changeThemeBtn: document.getElementById('change-theme-btn'),
+      muteMusicBtn: document.getElementById('mute-music-btn'),
+      muteSfxBtn: document.getElementById('mute-sfx-btn'),
     };
     this.selectedTheme = 'berlin';
     this.el.lapTotal.textContent = RACE.totalLaps;
@@ -57,6 +59,26 @@ export class UI {
   onStart(cb) { this.el.startBtn.onclick = cb; }
   onAgain(cb) { this.el.againBtn.onclick = cb; }
   onChangeTheme(cb) { this.el.changeThemeBtn.onclick = cb; }
+  onToggleMusic(cb) { this.el.muteMusicBtn.onclick = cb; }
+  onToggleSfx(cb) { this.el.muteSfxBtn.onclick = cb; }
+
+  // render the mute buttons to reflect current state (icon + label + colour)
+  setMusicButton(muted) {
+    const b = this.el.muteMusicBtn;
+    b.textContent = muted ? '🔇 Music: Off' : '🎵 Music: On';
+    b.classList.toggle('muted', muted);
+    b.setAttribute('aria-pressed', String(muted));
+  }
+  setSfxButton(muted) {
+    const b = this.el.muteSfxBtn;
+    b.textContent = muted ? '🔇 SFX: Off' : '🔊 SFX: On';
+    b.classList.toggle('muted', muted);
+    b.setAttribute('aria-pressed', String(muted));
+  }
+  setAudioState(musicMuted, sfxMuted) {
+    this.setMusicButton(musicMuted);
+    this.setSfxButton(sfxMuted);
+  }
 
   showStart() {
     this.el.startScreen.classList.remove('hidden');
