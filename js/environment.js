@@ -48,29 +48,80 @@ export class Environment {
     );
   }
 
-  // Clone the loaded pretzel, scale it to a skyline-landmark height, rest it on
-  // the ground beside the track, and add it to the scene. No-op until loaded.
-  _addPretzelLandmark() {
-    if (!this.pretzelModel || this._pretzelAdded) return;
+  // Clone the GLB pretzel, scale it to a skyline-landmark height (~30u, like the
+  // gate), and rest its lowest point on the ground. Returns a positioned-at-origin
+  // wrapper tagged so other pretzels/landmarks keep their distance.
+  _makePretzelWrap() {
     const model = this.pretzelModel.clone(true);
-
-    // scale so the model reads as a prominent landmark (~30u tall, like the gate)
     const size = new THREE.Vector3();
     new THREE.Box3().setFromObject(model).getSize(size);
     const targetHeight = 30;
     model.scale.setScalar(size.y > 0 ? targetHeight / size.y : 1);
 
-    // place it off to the side of the track early in the lap so it's clearly seen
     const wrap = new THREE.Group();
     wrap.name = 'pretzelLandmark';
+    wrap.userData.avoid = true;
     wrap.add(model);
-    wrap.position.copy(this._outside(0.11, 1, 46, 0));
-    // rest its lowest point on the ground after scaling
     const box = new THREE.Box3().setFromObject(wrap);
-    model.position.y -= box.min.y;
-    wrap.rotation.y = Math.PI;                 // face the track
-    this._ensureClear(wrap, 5);
-    this.group.add(wrap);
+    model.position.y -= box.min.y;             // rest on the ground after scaling
+    return wrap;
+  }
+
+  // Smallest horizontal footprint edge-gap from obj to any already-placed
+  // "avoid" object (landmarks + earlier pretzels). Negative → overlapping.
+  _minAvoidGap(obj) {
+    const box = new THREE.Box3(), c = new THREE.Vector3(), size = new THREE.Vector3();
+    const ob = new THREE.Box3(), oc = new THREE.Vector3(), os = new THREE.Vector3();
+    box.setFromObject(obj); box.getCenter(c); box.getSize(size);
+    const r = 0.5 * Math.hypot(size.x, size.z);
+    let worst = Infinity;
+    for (const other of this.group.children) {
+      if (other === obj || !other.userData?.avoid) continue;
+      ob.setFromObject(other); ob.getCenter(oc); ob.getSize(os);
+      const orr = 0.5 * Math.hypot(os.x, os.z);
+      const d = Math.hypot(c.x - oc.x, c.z - oc.z);
+      worst = Math.min(worst, d - r - orr);
+    }
+    return worst;
+  }
+
+  // Slide the pretzel along the roadside (varying t, both directions) from the
+  // anchor until it clears every landmark/earlier pretzel by minGap, staying off
+  // the track the whole time. Falls back to the least-bad spot if none clears.
+  _placeAlongTrack(wrap, t0, side, dist, minGap) {
+    let best = null, bestGap = -Infinity;
+    for (let step = 0; step <= 45; step++) {
+      for (const dir of step === 0 ? [0] : [1, -1]) {
+        const t = (t0 + dir * step * 0.01 + 1) % 1;
+        wrap.position.copy(this._outside(t, side, dist, 0));
+        wrap.rotation.y = side > 0 ? Math.PI : 0;   // face the track
+        this._ensureClear(wrap, 5);                 // never on the racing surface
+        const gap = this._minAvoidGap(wrap);
+        if (gap >= minGap) return;                  // clear — keep this spot
+        if (gap > bestGap) { bestGap = gap; best = wrap.position.clone(); }
+      }
+    }
+    if (best) wrap.position.copy(best);             // best effort
+  }
+
+  // Scatter several pretzels around the Berlin loop — alternating sides and
+  // varied distances so they feel naturally distributed. Anchors sit opposite
+  // the landmark ring; each then slides along the roadside into a clear gap.
+  // No-op until the GLB has loaded.
+  _addPretzelLandmark() {
+    if (!this.pretzelModel || this._pretzelAdded) return;
+    // [t (0..1 around loop), side (-1|1), distance beyond the curb]
+    const anchors = [
+      [0.187, 1, 46],
+      [0.437, -1, 44],
+      [0.687, 1, 52],
+      [0.937, -1, 40],
+    ];
+    for (const [t, side, dist] of anchors) {
+      const wrap = this._makePretzelWrap();
+      this._placeAlongTrack(wrap, t, side, dist, 12);
+      this.group.add(wrap);                         // now visible to later pretzels
+    }
     this._pretzelAdded = true;
   }
 
@@ -127,6 +178,7 @@ export class Environment {
       lm.position.copy(this._outside(t, side, 42 + (i % 3) * 22, 0));
       lm.rotation.y = side > 0 ? Math.PI : 0;     // face the track
       this._ensureClear(lm, 4);                   // big pieces: keep a wider berth
+      lm.userData.avoid = true;                   // pretzels steer clear of these
       this.group.add(lm);
     }
 
