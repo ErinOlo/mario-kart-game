@@ -13,6 +13,9 @@ const GLB_MODELS = {
   tshirts:  { url: 'public/models/tshirts.glb',  name: 'tshirtsLandmark',  height: 18 },
   hanger:   { url: 'public/models/hanger.glb',   name: 'hangerLandmark',   height: 20 },
   closet:   { url: 'public/models/closet.glb',   name: 'closetLandmark',   height: 26 },
+  // accent details — deliberately smaller (~60-70% of the stiletto's 22u)
+  headphones: { url: 'public/models/headphones.glb', name: 'headphonesLandmark', height: 14 },
+  timehotel:  { url: 'public/models/timehotel.glb',  name: 'timehotelLandmark',  height: 15 },
 };
 // Per theme: a list of { model, anchors } — each anchor is [t, side, distance]
 // around the loop. Spread across the loop and alternating sides; each instance
@@ -26,6 +29,9 @@ const THEME_GLB = {
     { model: 'tshirts',  anchors: [[0.22, -1, 48], [0.55, 1, 50], [0.88, -1, 46]] },
     { model: 'hanger',   anchors: [[0.05, 1, 50], [0.38, 1, 44], [0.70, -1, 48]] },
     { model: 'closet',   anchors: [[0.30, -1, 54], [0.63, -1, 54]] },
+    // accent details — headphones hug the road, TIME HOTEL sits a little further out
+    { model: 'headphones', anchors: [[0.15, 1, 38], [0.33, -1, 40], [0.50, 1, 36], [0.68, -1, 40], [0.83, 1, 38]] },
+    { model: 'timehotel',  anchors: [[0.20, -1, 58], [0.47, 1, 60], [0.73, -1, 58], [0.95, 1, 60]] },
   ],
 };
 
